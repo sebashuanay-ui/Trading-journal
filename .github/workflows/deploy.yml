@@ -1,0 +1,41 @@
+name: Publicar sitio
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Cada 5 minutos de lunes a viernes, de 12:00 a 22:59 UTC (08:00 a 18:59 en Nueva York, horario de verano).
+    - cron: "*/5 12-22 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Armar sitio con el precio actual de MNQ
+        run: python scripts/build_site.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

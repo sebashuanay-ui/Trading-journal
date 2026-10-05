@@ -1,0 +1,1483 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light; padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px) }
+body { margin: 0; font-family: system-ui, sans-serif; font-size: 14px }
+img { max-width: 100% }
+[hidden] { display: none !important }
+</style>
+<title>Bitácora MNQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: cabecera con estado de datos, pestañas, panel primario de métricas → curva de capital → calendario; detalle de trade con gráfico de velas */
+:root {
+  --bg: #f2f4f1; --surface: #ffffff; --surface-2: #eaeee9; --line: #d6dcd5; --fg: #15201b; --muted: #5a6962;
+  --accent: #0d6b62; --accent-soft: #d5ebe7; --pos: #1b8a4c; --neg: #c03f2d; --warn: #a86d12;
+  --pos-soft: rgba(27,138,76,.14); --neg-soft: rgba(192,63,45,.13);
+  --f-ui: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-disp: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1412; --surface: #151d1a; --surface-2: #1c2622; --line: #2a3632; --fg: #e4ebe7; --muted: #94a59d;
+  --accent: #45b8aa; --accent-soft: #173a35; --pos: #3fbe78; --neg: #e86a54; --warn: #e3a440;
+  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1412; --surface: #151d1a; --surface-2: #1c2622; --line: #2a3632; --fg: #e4ebe7; --muted: #94a59d;
+  --accent: #45b8aa; --accent-soft: #173a35; --pos: #3fbe78; --neg: #e86a54; --warn: #e3a440;
+  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16); color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 14px; line-height: 1.45 }
+.wrap { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 48px; display: grid; gap: 16px }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums }
+.pos { color: var(--pos) } .neg { color: var(--neg) } .muted { color: var(--muted) }
+h1, h2, h3 { margin: 0; text-wrap: balance }
+h1 { font-family: var(--f-disp); font-weight: 400; font-size: 30px; letter-spacing: .2px; line-height: 1.1 }
+h2 { font-size: 15px; font-weight: 600 }
+.lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600 }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between }
+.top .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; color: var(--muted); white-space: nowrap }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted) }
+.chip.ok .dot { background: var(--pos) } .chip.warn .dot { background: var(--warn) } .chip.bad .dot { background: var(--neg) }
+button, .btn { font: inherit; font-weight: 600; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px }
+button:hover { border-color: var(--accent) }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button.pri { background: var(--accent); border-color: var(--accent); color: var(--surface) }
+button.pri:hover { filter: brightness(1.08) }
+button.ghost { background: transparent }
+button.danger { color: var(--neg) }
+button:disabled { opacity: .5; cursor: not-allowed }
+nav.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto }
+nav.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 9px 12px; white-space: nowrap }
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent) }
+.banner { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.banner.demo { border-color: var(--accent); background: var(--accent-soft) }
+.banner.alert { border-color: var(--neg); background: var(--neg-soft) }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; min-width: 0 }
+.panel-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px }
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden }
+.kpi { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; min-width: 0 }
+.kpi .v { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.kpi .s { font-size: 12px; color: var(--muted); font-family: var(--f-num) }
+.kpi.big .v { font-size: clamp(22px, 4.6vw, 30px) }
+.stats2 { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted) }
+.stats2 b { color: var(--fg); font-family: var(--f-num); font-weight: 500 }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.chart { height: 300px; position: relative }
+.chart.tall { height: 420px }
+.legend { position: absolute; left: 8px; top: 6px; z-index: 3; font-family: var(--f-num); font-size: 11.5px; color: var(--muted); pointer-events: none; background: var(--surface); padding: 2px 6px; border-radius: 4px; opacity: .92 }
+.chart-empty { height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 16px; border: 1px dashed var(--line); border-radius: 8px }
+/* calendario */
+.cal-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.cal-h .mes { font-weight: 600; font-size: 15px; min-width: 140px; text-align: center }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 1.15fr); gap: 4px; margin-top: 10px }
+.cal .dn { font-size: 11px; color: var(--muted); text-align: center; font-weight: 600; letter-spacing: .05em; text-transform: uppercase }
+.cell { border: 1px solid var(--line); border-radius: 6px; min-height: 58px; padding: 4px 6px; display: grid; align-content: space-between; font-size: 11px; background: var(--surface); text-align: left; cursor: default; color: var(--fg); font-weight: 400 }
+.cell.out { opacity: .35 }
+.cell.has { cursor: pointer }
+.cell.has:hover { border-color: var(--accent) }
+.cell.today { outline: 1.5px solid var(--accent); outline-offset: -1.5px }
+.cell .d { color: var(--muted); font-size: 11px }
+.cell .p { font-family: var(--f-num); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cell .n { color: var(--muted); font-size: 10.5px }
+.cell.week { background: var(--surface-2) }
+.yr { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; margin-top: 10px }
+.yr button { padding: 5px 2px; display: grid; gap: 1px; justify-items: center; font-size: 10.5px; font-weight: 500; border-radius: 6px; min-width: 0 }
+.yr button .p { font-family: var(--f-num); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.yr button.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
+@media (max-width: 560px) { .cell { min-height: 46px; padding: 3px } .cell .n { display: none } .cell .p { font-size: 10px } .yr { grid-template-columns: repeat(6, minmax(0, 1fr)) } }
+/* tablas */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line) }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; background: var(--surface-2); position: sticky; top: 0 }
+th.l, td.l { text-align: left }
+tbody tr { cursor: pointer }
+tbody tr:hover { background: var(--surface-2) }
+tbody tr.sel { background: var(--accent-soft) }
+td.num { font-family: var(--f-num); font-variant-numeric: tabular-nums }
+.tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--surface-2); color: var(--muted) }
+.tag.long { background: var(--pos-soft); color: var(--pos) } .tag.short { background: var(--neg-soft); color: var(--neg) }
+.tag.ej { background: var(--accent-soft); color: var(--accent) }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: end }
+.filters label { display: grid; gap: 3px; font-size: 11px; color: var(--muted); font-weight: 600 }
+input, select, textarea { font: inherit; font-size: 13.5px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; min-width: 0; width: 100% }
+input[type="checkbox"] { width: auto }
+textarea { resize: vertical; min-height: 64px }
+.filters select, .filters input { width: auto }
+/* detalle */
+.detail { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px }
+@media (max-width: 900px) { .detail { grid-template-columns: 1fr } }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px }
+.kv dt { color: var(--muted) } .kv dd { margin: 0; text-align: right; font-family: var(--f-num) }
+.note { white-space: pre-wrap; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; font-size: 13px }
+.verif { border-left: 3px solid var(--accent); padding: 6px 10px; background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 12.5px; display: grid; gap: 3px }
+.verif.warn { border-left-color: var(--warn) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12px }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface) }
+/* barras de análisis */
+.bars { display: grid; gap: 6px }
+.bar-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 92px; gap: 8px; align-items: center; font-size: 12.5px }
+.bar-row .track { position: relative; height: 16px; background: var(--surface-2); border-radius: 4px; overflow: hidden }
+.bar-row .track span { position: absolute; top: 0; bottom: 0; border-radius: 3px }
+.bar-row .track i { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line) }
+.bar-row .val { text-align: right; font-family: var(--f-num); white-space: nowrap }
+.bar-row .k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px }
+/* modal */
+.overlay { position: fixed; inset: 0; background: rgba(8, 14, 12, .55); z-index: 50; display: grid; place-items: start center; overflow-y: auto; padding: max(16px, env(safe-area-inset-top, 0px)) 16px 16px }
+.modal { width: min(1100px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; margin-block: 8px 24px }
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px }
+@media (max-width: 900px) { .form-grid { grid-template-columns: 1fr } }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+.fields label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted) }
+.fields .full { grid-column: 1 / -1 }
+.calc { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; font-size: 12.5px }
+.calc .row { display: flex; justify-content: space-between; gap: 10px }
+.calc .row b { font-family: var(--f-num); font-weight: 500 }
+.err { color: var(--neg); font-size: 12.5px; min-height: 1em }
+.inline-btns { display: flex; flex-wrap: wrap; gap: 6px }
+.small { font-size: 12px; padding: 4px 8px }
+.toast { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 80; background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; max-width: min(420px, calc(100vw - 32px)) }
+.empty { text-align: center; padding: 28px 16px; color: var(--muted) }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px }
+.settings label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted) }
+.help { font-size: 12px; color: var(--muted); font-weight: 400 }
+pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padding: 8px; border-radius: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-all }
+/* en vivo */
+.live-head { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px }
+.live-px { font-size: clamp(34px, 7vw, 52px); line-height: 1.05; font-weight: 500 }
+.live-stats { display: flex; flex-wrap: wrap; gap: 10px 22px }
+.live-stats div { display: grid; gap: 1px }
+.live-stats b { font-family: var(--f-num); font-weight: 500; font-size: 15px }
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted) }
+.state.on { background: var(--pos-soft); color: var(--pos) } .state.late { background: var(--neg-soft); color: var(--neg) }
+.jd { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: middle }
+/* diario */
+.jcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 8px; min-width: 0 }
+.jcard h3 { font-size: 15px; font-weight: 600 }
+.jhead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center }
+.jdate { font-family: var(--f-num); font-size: 12.5px; color: var(--muted) }
+.jtext { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; max-width: 78ch }
+.jsec { display: grid; gap: 2px; font-size: 13px }
+.jsec .lbl { font-size: 10.5px }
+.jlist { display: grid; gap: 12px }
+.jtools { display: flex; flex-wrap: wrap; gap: 8px; align-items: end }
+.mood { display: inline-flex; gap: 2px; align-items: center }
+.mood i { width: 8px; height: 8px; border-radius: 2px; background: var(--line) }
+.mood i.on { background: var(--accent) }
+.tagc { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; background: var(--accent-soft); color: var(--accent); font-weight: 600 }
+.modal.narrow { width: min(760px, 100%) }
+.jform { display: grid; gap: 12px }
+.jform label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted) }
+.jform textarea.big { min-height: 200px }
+.mood-pick { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; width: fit-content }
+.mood-pick button { border: 0; border-radius: 0; padding: 6px 12px; font-size: 12.5px }
+.mood-pick button[aria-pressed="true"] { background: var(--accent); color: var(--surface) }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div style="display:grid;gap:4px;min-width:0">
+      <span class="lbl">Bitácora de trading · Micro E-mini Nasdaq-100</span>
+      <h1 id="exp-name">Mi experimento MNQ</h1>
+    </div>
+    <div class="meta">
+      <span class="chip" id="chip-store"><span class="dot"></span><span>Conectando…</span></span>
+      <button type="button" class="ghost small" id="btn-theme" title="Cambiar tema">Tema</button>
+      <span class="chip" id="chip-live"><span class="dot"></span><span>MNQ en vivo…</span></span>
+      <span class="chip" id="chip-data"><span class="dot"></span><span>Datos MNQ…</span></span>
+      <button class="pri" id="btn-new" type="button">+ Registrar trade</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button type="button" role="tab" data-tab="panel" aria-selected="true">Panel</button>
+    <button type="button" role="tab" data-tab="vivo" aria-selected="false">En vivo</button>
+    <button type="button" role="tab" data-tab="trades" aria-selected="false">Trades</button>
+    <button type="button" role="tab" data-tab="diario" aria-selected="false">Diario</button>
+    <button type="button" role="tab" data-tab="analisis" aria-selected="false">Análisis</button>
+    <button type="button" role="tab" data-tab="grafico" aria-selected="false">Gráfico MNQ</button>
+    <button type="button" role="tab" data-tab="ajustes" aria-selected="false">Ajustes y datos</button>
+  </nav>
+
+  <div id="banners" style="display:grid;gap:8px"></div>
+
+  <!-- PANEL -->
+  <section id="v-panel" style="display:grid;gap:16px">
+    <div class="kpis" id="kpis"></div>
+    <div class="stats2" id="stats2"></div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-h"><h2>Curva de capital</h2><span class="muted" id="eq-sub" style="font-size:12px"></span></div>
+        <div class="chart" id="eq-chart"></div>
+      </div>
+      <div class="panel">
+        <div class="cal-h">
+          <h2 style="margin-right:auto">Calendario de PnL</h2>
+          <button type="button" class="ghost small" id="cal-prev" aria-label="Mes anterior">‹</button>
+          <span class="mes" id="cal-mes"></span>
+          <button type="button" class="ghost small" id="cal-next" aria-label="Mes siguiente">›</button>
+          <button type="button" class="small" id="cal-hoy">Hoy</button>
+        </div>
+        <div class="stats2" id="cal-sum" style="margin-top:8px"></div>
+        <div class="cal" id="cal"></div>
+        <div class="yr" id="yr"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>Últimos trades</h2><button type="button" class="ghost small" id="go-trades">Ver todos →</button></div>
+      <div class="tbl-wrap"><table id="tbl-recent"></table></div>
+    </div>
+  </section>
+
+  <!-- EN VIVO -->
+  <section id="v-vivo" hidden style="display:grid;gap:16px">
+    <div class="panel">
+      <div class="live-head">
+        <div style="display:grid;gap:4px">
+          <span class="lbl">MNQ · Micro E-mini Nasdaq-100 · contrato continuo</span>
+          <span class="live-px num" id="lv-px">—</span>
+          <span class="num" id="lv-chg" style="font-size:15px"></span>
+        </div>
+        <div class="live-stats" id="lv-stats"></div>
+      </div>
+      <div class="inline-btns" style="align-items:center;margin-bottom:8px">
+        <div class="seg" id="lv-tf"><button type="button" data-tf="1" aria-pressed="true">1m</button><button type="button" data-tf="5" aria-pressed="false">5m</button><button type="button" data-tf="15" aria-pressed="false">15m</button></div>
+        <span class="state" id="lv-state">—</span>
+        <span class="muted" id="lv-age" style="font-size:12.5px"></span>
+      </div>
+      <div class="chart tall" id="lv-chart"></div>
+      <p class="help" id="lv-note" style="margin-top:8px"></p>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>Tus trades de hoy</h2></div>
+      <div class="tbl-wrap"><table id="tbl-today"></table></div>
+    </div>
+  </section>
+
+  <!-- TRADES -->
+  <section id="v-trades" hidden style="display:grid;gap:16px">
+    <div class="filters">
+      <label>Periodo
+        <select id="f-per"><option value="todo">Todo</option><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="dia">Un día…</option></select>
+      </label>
+      <label id="f-dia-w" hidden>Día <input type="date" id="f-dia"></label>
+      <label>Dirección <select id="f-dir"><option value="">Ambas</option><option value="1">Largos</option><option value="-1">Cortos</option></select></label>
+      <label>Setup <select id="f-setup"><option value="">Todos</option></select></label>
+      <label>Resultado <select id="f-res"><option value="">Todos</option><option value="w">Ganadores</option><option value="l">Perdedores</option><option value="be">Empates</option></select></label>
+      <span class="muted" id="f-count" style="font-size:12px;margin-left:auto"></span>
+    </div>
+    <div class="tbl-wrap" style="max-height:420px"><table id="tbl-all"></table></div>
+    <div class="panel" id="detail"></div>
+  </section>
+
+  <!-- DIARIO -->
+  <section id="v-diario" hidden style="display:grid;gap:16px">
+    <div class="jtools">
+      <label class="lbl" style="display:grid;gap:3px">Buscar <input type="search" id="j-q" placeholder="Palabra, etiqueta o título" style="min-width:220px"></label>
+      <label class="lbl" style="display:grid;gap:3px">Mes <select id="j-mes"><option value="">Todos</option></select></label>
+      <label class="lbl" style="display:grid;gap:3px">Ánimo <select id="j-animo"><option value="">Todos</option><option value="1">1 · Muy mal</option><option value="2">2 · Mal</option><option value="3">3 · Normal</option><option value="4">4 · Bien</option><option value="5">5 · Muy bien</option></select></label>
+      <span class="muted" id="j-count" style="font-size:12px;margin-left:auto"></span>
+      <button type="button" class="pri" id="j-new">+ Nueva entrada</button>
+    </div>
+    <div class="jlist" id="j-list"></div>
+  </section>
+
+  <!-- ANÁLISIS -->
+  <section id="v-analisis" hidden style="display:grid;gap:16px">
+    <div class="grid3" id="ana"></div>
+  </section>
+
+  <!-- GRÁFICO -->
+  <section id="v-grafico" hidden style="display:grid;gap:16px">
+    <div class="panel">
+      <div class="panel-h">
+        <h2>Precio de MNQ en una fecha y hora</h2>
+        <div class="filters">
+          <label>Fecha <input type="date" id="x-fecha"></label>
+          <label>Hora <input type="time" id="x-hora" step="60"></label>
+          <button type="button" id="x-ir">Ver</button>
+        </div>
+      </div>
+      <div class="inline-btns" style="margin-bottom:8px;align-items:center">
+        <div class="seg" id="x-tf"></div>
+        <span class="muted" id="x-info" style="font-size:12.5px"></span>
+      </div>
+      <div class="chart tall" id="x-chart"></div>
+    </div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section id="v-ajustes" hidden style="display:grid;gap:16px">
+    <form class="panel" id="form-aj" novalidate>
+      <div class="panel-h"><h2>Cuenta y reglas</h2><button type="submit" class="pri">Guardar ajustes</button></div>
+      <div class="settings">
+        <label>Nombre del experimento <input id="a-nombre" type="text" maxlength="60"></label>
+        <label>Capital inicial (USD) <input id="a-capital" type="number" step="0.01" min="1"></label>
+        <label>Riesgo por trade (% del capital) <input id="a-riesgo" type="number" step="0.05" min="0.05"><span class="help">Se usa para sugerir contratos.</span></label>
+        <label>Comisión ida y vuelta por contrato (USD) <input id="a-com" type="number" step="0.01" min="0"></label>
+        <label>Límite de pérdida diaria (USD) <input id="a-lim" type="number" step="1" min="0"><span class="help">0 = sin límite. Muestra una alerta al pasarlo.</span></label>
+        <label>Máximo de trades por día <input id="a-max" type="number" step="1" min="0"><span class="help">0 = sin límite.</span></label>
+        <label>Horas que escribo
+          <select id="a-tz"><option value="ET">Hora de Nueva York (ET)</option><option value="local">Mi hora local</option></select>
+          <span class="help" id="a-tz-help"></span>
+        </label>
+        <label>Fecha de inicio del experimento <input id="a-inicio" type="date"><span class="help">Opcional, solo informativo.</span></label>
+      </div>
+      <p class="err" id="aj-err"></p>
+    </form>
+    <div class="panel">
+      <div class="panel-h"><h2>Exportar e importar</h2></div>
+      <div class="inline-btns">
+        <button type="button" id="ex-json">Exportar copia (JSON)</button>
+        <button type="button" id="ex-csv">Exportar trades (CSV)</button>
+        <label class="btn" for="im-json" style="cursor:pointer">Importar copia (JSON)</label>
+        <input type="file" id="im-json" accept=".json,application/json" hidden>
+        <span style="flex:1"></span>
+        <button type="button" class="danger" id="del-all">Borrar todos los trades</button>
+      </div>
+      <div id="del-confirm" class="banner alert" style="margin-top:10px" hidden>
+        <span>Se borrarán todos tus trades (el diario no se toca) de forma permanente. ¿Seguro?</span>
+        <button type="button" class="danger" id="del-yes">Sí, borrar todo</button>
+        <button type="button" id="del-no">Cancelar</button>
+      </div>
+      <div id="dump-w" hidden style="margin-top:10px;display:grid;gap:6px">
+        <span class="help">No se pudo iniciar la descarga. Copia el contenido:</span>
+        <pre class="dump" id="dump"></pre>
+        <div><button type="button" class="small" id="dump-copy">Copiar</button></div>
+      </div>
+      <p class="help" id="backup-msg"></p>
+      <p class="help" id="im-msg"></p>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>Datos de precio</h2></div>
+      <div class="stats2" id="data-cov" style="display:grid;gap:4px"></div>
+      <p class="help" style="margin-top:8px">Fuente: contrato continuo MNQ=F (Yahoo Finance). El precio en vivo se renueva cada 5 minutos en horario de mercado y las velas históricas se archivan cada día después del cierre. Velas de 1 minuto desde el 8 de septiembre de 2026, de 5 minutos para los últimos 60 días y de 1 hora para los últimos 2 años. Las sesiones van de 18:00 ET del día anterior a 17:00 ET. El contrato continuo cambia de vencimiento cada trimestre; tu bróker puede mostrar diferencias de unos ticks.</p>
+    </div>
+  </section>
+</div>
+
+<div class="overlay" id="ov" hidden>
+  <form class="modal" id="form-t" novalidate aria-labelledby="ft-title">
+    <div class="panel-h" style="margin:0">
+      <h2 id="ft-title">Registrar trade</h2>
+      <div class="inline-btns"><button type="button" class="ghost" id="ft-cancel">Cancelar</button><button type="submit" class="pri" id="ft-save">Guardar trade</button></div>
+    </div>
+    <div class="form-grid">
+      <div style="display:grid;gap:12px;align-content:start">
+        <div class="fields">
+          <label>Fecha <input type="date" id="t-fecha" required></label>
+          <label>Dirección
+            <select id="t-dir"><option value="1">Largo (compra)</option><option value="-1">Corto (venta)</option></select>
+          </label>
+          <label>Hora de entrada <input type="time" id="t-he" step="60" required></label>
+          <label>Hora de salida <input type="time" id="t-hs" step="60"></label>
+          <label>Entrada <input type="number" id="t-ent" step="0.25" inputmode="decimal" required></label>
+          <label>Stop loss <input type="number" id="t-sl" step="0.25" inputmode="decimal"></label>
+          <label>Take profit <input type="number" id="t-tp" step="0.25" inputmode="decimal"></label>
+          <label>Salida (donde terminó) <input type="number" id="t-sal" step="0.25" inputmode="decimal" required></label>
+          <label>Contratos MNQ <input type="number" id="t-ctr" step="1" min="1" required></label>
+          <label>Comisión total (USD) <input type="number" id="t-com" step="0.01" min="0"></label>
+          <label>Setup / estrategia <input type="text" id="t-setup" list="setups" maxlength="40" placeholder="p. ej. ORB 15m"></label>
+          <datalist id="setups"></datalist>
+          <label>Estado emocional
+            <select id="t-emo"><option value="">—</option><option>Tranquilo</option><option>Confiado</option><option>Ansioso</option><option>Impaciente</option><option>Con miedo</option><option>Revancha</option><option>Cansado</option></select>
+          </label>
+          <label class="full" style="display:flex;gap:8px;align-items:center;color:var(--fg);font-weight:500"><input type="checkbox" id="t-reglas"> Respeté mi plan y mis reglas en este trade</label>
+          <label class="full">Notas <textarea id="t-notas" maxlength="2000" placeholder="Por qué entré, qué vi, qué haría distinto"></textarea></label>
+        </div>
+        <div class="calc" id="t-calc"></div>
+        <p class="err" id="t-err"></p>
+      </div>
+      <div style="display:grid;gap:8px;align-content:start;min-width:0">
+        <div class="inline-btns" style="align-items:center">
+          <div class="seg" id="t-tf"></div>
+          <span class="muted" id="t-info" style="font-size:12px"></span>
+        </div>
+        <div class="chart tall" id="t-chart"></div>
+        <div class="inline-btns" id="t-fill"></div>
+        <div id="t-verif"></div>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="overlay" id="ov-j" hidden>
+  <form class="modal narrow" id="form-j" novalidate aria-labelledby="fj-title">
+    <div class="panel-h" style="margin:0">
+      <h2 id="fj-title">Nueva entrada de diario</h2>
+      <div class="inline-btns"><button type="button" class="ghost" id="fj-cancel">Cancelar</button><button type="submit" class="pri" id="fj-save">Guardar entrada</button></div>
+    </div>
+    <div class="jform">
+      <div class="fields">
+        <label>Fecha <input type="date" id="j-fecha" required></label>
+        <label>Título (opcional) <input type="text" id="j-titulo" maxlength="80" placeholder="p. ej. Día de rango, no operé"></label>
+        <label class="full">Estado de ánimo
+          <span class="mood-pick" id="j-animo-pick"><button type="button" data-v="1" aria-pressed="false">1 Muy mal</button><button type="button" data-v="2" aria-pressed="false">2 Mal</button><button type="button" data-v="3" aria-pressed="false">3 Normal</button><button type="button" data-v="4" aria-pressed="false">4 Bien</button><button type="button" data-v="5" aria-pressed="false">5 Muy bien</button></span>
+        </label>
+        <label class="full">Etiquetas (separadas por coma) <input type="text" id="j-tags" maxlength="120" placeholder="FOMC, rango, error de disciplina"></label>
+      </div>
+      <div class="calc" id="j-dia"></div>
+      <label>Diario <textarea class="big" id="j-texto" maxlength="12000" placeholder="Cómo estuvo el mercado, qué pensé, qué sentí, qué pasó"></textarea></label>
+      <div class="fields">
+        <label class="full">Lo que hice bien <textarea id="j-bien" maxlength="3000"></textarea></label>
+        <label class="full">Lo que debo mejorar <textarea id="j-mejorar" maxlength="3000"></textarea></label>
+        <label class="full">Plan para la próxima sesión <textarea id="j-plan" maxlength="3000"></textarea></label>
+      </div>
+      <p class="err" id="j-err"></p>
+      <span class="help" id="j-draft"></span>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(() => {
+"use strict";
+// ───────────── utilidades ─────────────
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const PV = 2; // USD por punto en MNQ
+const LOCAL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } })();
+const ET = "America/New_York";
+const DEFAULTS = { nombre: "Mi experimento MNQ", capital: 1000, riesgoPct: 1, comision: 1.24, limiteDiario: 0, maxTrades: 0, tz: "ET", inicio: "" };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isNum = x => typeof x === "number" && isFinite(x);
+const toNum = v => { if (v === "" || v == null) return null; const n = Number(String(v).replace(",", ".")); return isFinite(n) ? n : null; };
+function money(x, signo = true) {
+  if (!isNum(x)) return "—";
+  const s = Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (x < 0 ? "−$" : (signo && x > 0 ? "+$" : "$")) + s;
+}
+const moneyC = x => isNum(x) ? (Math.abs(x) >= 100 ? (x < 0 ? "−$" : x > 0 ? "+$" : "$") + Math.round(Math.abs(x)).toLocaleString("en-US") : money(x)) : "—";
+const pct = (x, d = 1) => isNum(x) ? (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x * 100).toFixed(d) + "%" : "—";
+const pctU = (x, d = 1) => isNum(x) ? (x * 100).toFixed(d) + "%" : "—";
+const px = x => isNum(x) ? x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+const rr = x => isNum(x) ? (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "R" : "—";
+const cls = x => isNum(x) ? (x > 0 ? "pos" : x < 0 ? "neg" : "") : "";
+const tzName = k => k === "local" ? LOCAL_TZ : ET;
+function partsIn(tz, ms) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" });
+  const o = {}; for (const p of f.formatToParts(new Date(ms))) o[p.type] = p.value;
+  return { y: +o.year, m: +o.month, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd: o.weekday };
+}
+const offCache = new Map();
+function offsetMin(tz, ms) {
+  const k = tz + "|" + Math.floor(ms / 3600000);
+  if (offCache.has(k)) return offCache.get(k);
+  const p = partsIn(tz, ms);
+  const v = Math.round((Date.UTC(p.y, p.m - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000) / 60000);
+  offCache.set(k, v); return v;
+}
+function zonedToEpoch(date, time, tz) {
+  const [y, m, d] = date.split("-").map(Number); const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, h, mi);
+  const o1 = offsetMin(tz, guess); let ep = guess - o1 * 60000;
+  const o2 = offsetMin(tz, ep); if (o2 !== o1) ep = guess - o2 * 60000;
+  return Math.round(ep / 1000);
+}
+const pad = n => String(n).padStart(2, "0");
+const ymd = p => `${p.y}-${pad(p.m)}-${pad(p.d)}`;
+const hm = p => `${pad(p.h)}:${pad(p.mi)}`;
+const todayIn = tz => ymd(partsIn(tz, Date.now()));
+function addDays(s, n) { const [y, m, d] = s.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); }
+function dow(s) { const [y, m, d] = s.split("-").map(Number); return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; } // 0 = lunes
+const weekStart = s => addDays(s, -dow(s));
+// sesión CME: 18:00 ET del día anterior → 17:00 ET
+function sessionOf(epoch) {
+  const p = partsIn(ET, epoch * 1000); let d = ymd(p);
+  if (p.h >= 18) d = addDays(d, 1);
+  if (dow(d) === 5) d = addDays(d, 2); if (dow(d) === 6) d = addDays(d, 1);
+  return d;
+}
+const fmtTime = (epoch, tz) => hm(partsIn(tz, epoch * 1000));
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 3600); }
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ───────────── estado ─────────────
+const S = {
+  trades: [], journal: [], live: null, ajustes: { ...DEFAULTS }, modo: "cargando", cargado: false, demo: [], usandoDemo: false,
+  db: null, uid: null, col: null, downloads: null, indice: null, precios: new Map(),
+  tab: "panel", calMes: todayIn(ET).slice(0, 7), sel: null, editId: null,
+};
+const LS_KEY = "bitacora_mnq_v1";
+function lsRead() { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+function lsWrite() { try { localStorage.setItem(LS_KEY, JSON.stringify({ trades: S.trades, journal: S.journal, ajustes: S.ajustes })); return true; } catch (e) { return false; } }
+
+// ───────────── persistencia ─────────────
+async function initStore() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
+  S.db = true; // los precios vienen de archivos del propio sitio
+  loadIndice(); subscribeLive();
+  useLocal("Tus trades y tu diario se guardan solo en este navegador. Exporta una copia de vez en cuando (Ajustes y datos).");
+}
+function useLocal(aviso) {
+  S.modo = "local"; S.avisoLocal = aviso;
+  const d = lsRead(); S.trades = (d && Array.isArray(d.trades)) ? d.trades : []; S.journal = (d && Array.isArray(d.journal)) ? d.journal : [];
+  S.ajustes = { ...DEFAULTS, ...((d && d.ajustes) || {}) };
+  S.cargado = true; afterLoad();
+}
+function persist() { if (!lsWrite()) throw { code: "local", message: "El navegador no permite guardar." }; }
+async function saveTrade(t) { const i = S.trades.findIndex(x => x.id === t.id); if (i >= 0) S.trades[i] = t; else S.trades.push(t); persist(); afterLoad(); }
+async function saveEntry(e) { const i = S.journal.findIndex(x => x.id === e.id); if (i >= 0) S.journal[i] = e; else S.journal.push(e); persist(); afterLoad(); }
+async function deleteEntry(id) { S.journal = S.journal.filter(x => x.id !== id); persist(); afterLoad(); }
+async function deleteTrade(id) { S.trades = S.trades.filter(x => x.id !== id); persist(); afterLoad(); }
+async function saveAjustes(a) { S.ajustes = a; persist(); afterLoad(); }
+function storeErr(e) {
+  const c = e && e.code;
+  if (c === "local") return "El navegador no deja guardar (modo privado o almacenamiento lleno). Exporta una copia y libera espacio.";
+  if (c === "invalid_argument") return "No tienes permiso para escribir en este diario.";
+  if (c === "resource_exhausted") return "Demasiadas operaciones seguidas. Espera unos segundos e inténtalo de nuevo.";
+  return "No se pudo guardar (" + (c || "error") + "). Inténtalo de nuevo.";
+}
+
+// ───────────── precios ─────────────
+async function fetchJson(path, fresh) {
+  try {
+    const r = await fetch("data/" + path + (fresh ? "?t=" + Date.now() : ""), { cache: fresh ? "no-store" : "default" });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+async function pollLive() {
+  const d = await fetchJson("live.json", true);
+  if (d) { S.live = d; } renderLive(true);
+}
+function subscribeLive() { pollLive(); setInterval(pollLive, 60000); }
+async function loadIndice() {
+  S.indice = await fetchJson("index.json", true);
+  renderChipData(); renderCobertura();
+}
+async function getPriceDoc(id) {
+  if (S.precios.has(id)) return S.precios.get(id);
+  const p = fetchJson(id + ".json", id.startsWith("m1_") || id.startsWith("m5_") ? false : false);
+  S.precios.set(id, p);
+  const v = await p; if (!v) S.precios.delete(id);
+  return v;
+}
+function docToBars(d) {
+  const out = []; if (!d || !Array.isArray(d.t)) return out;
+  for (let i = 0; i < d.t.length; i++) out.push({ t: d.t[i], o: d.o[i], h: d.h[i], l: d.l[i], c: d.c[i], v: d.v ? d.v[i] : 0 });
+  return out;
+}
+// velas de la sesión que contiene `epoch`, con la mejor resolución disponible
+async function barsFor(epoch) {
+  const ses = sessionOf(epoch);
+  let d = await getPriceDoc("m1_" + ses);
+  if (d) return { tf: 1, ses, bars: docToBars(d), completa: d.completa };
+  d = await getPriceDoc("m5_" + ses);
+  if (d) return { tf: 5, ses, bars: docToBars(d), completa: d.completa };
+  d = await getPriceDoc("h1_" + ses.slice(0, 7));
+  if (d) {
+    const lo = epoch - 3 * 86400, hi = epoch + 2 * 86400;
+    return { tf: 60, ses, bars: docToBars(d).filter(b => b.t >= lo && b.t <= hi), completa: d.completa };
+  }
+  return { tf: 0, ses, bars: [] };
+}
+function aggregate(bars, srcTf, tf) {
+  if (tf <= srcTf) return bars;
+  const sec = tf * 60, out = []; let cur = null;
+  for (const b of bars) {
+    const k = Math.floor(b.t / sec) * sec;
+    if (!cur || cur.t !== k) { cur = { t: k, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }; out.push(cur); }
+    else { cur.h = Math.max(cur.h, b.h); cur.l = Math.min(cur.l, b.l); cur.c = b.c; cur.v += b.v; }
+  }
+  return out;
+}
+function barAt(bars, tf, epoch) {
+  const k = Math.floor(epoch / (tf * 60)) * (tf * 60);
+  let lo = 0, hi = bars.length - 1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (bars[m].t === k) return bars[m]; if (bars[m].t < k) lo = m + 1; else hi = m - 1; }
+  return null;
+}
+// verifica el trade contra las velas: ¿qué tocó primero, SL o TP? MFE/MAE
+function verificar(t, data) {
+  if (!data || !data.bars.length || !isNum(t.te)) return null;
+  const { bars, tf } = data, dir = t.dir, sec = tf * 60;
+  const res = { tf, entradaOk: null, salidaOk: null, hit: "ninguno", hitT: null, mfe: 0, mae: 0, conVelas: 0 };
+  const be = barAt(bars, tf, t.te);
+  if (be) res.entradaOk = t.entrada >= be.l - 0.25 && t.entrada <= be.h + 0.25;
+  if (isNum(t.ts)) { const bs = barAt(bars, tf, t.ts); if (bs) res.salidaOk = t.salida >= bs.l - 0.25 && t.salida <= bs.h + 0.25; }
+  const ini = Math.floor(t.te / sec) * sec + sec; // desde la vela siguiente a la de entrada
+  const fin = isNum(t.ts) ? Math.floor(t.ts / sec) * sec : Infinity;
+  for (const b of bars) {
+    if (b.t < ini) continue; if (b.t > fin) break;
+    res.conVelas++;
+    const fav = dir > 0 ? b.h - t.entrada : t.entrada - b.l, adv = dir > 0 ? t.entrada - b.l : b.h - t.entrada;
+    res.mfe = Math.max(res.mfe, fav); res.mae = Math.max(res.mae, adv);
+    if (res.hit === "ninguno") {
+      const slHit = isNum(t.sl) && (dir > 0 ? b.l <= t.sl : b.h >= t.sl);
+      const tpHit = isNum(t.tp) && (dir > 0 ? b.h >= t.tp : b.l <= t.tp);
+      if (slHit && tpHit) { res.hit = "ambos"; res.hitT = b.t; }
+      else if (slHit) { res.hit = "sl"; res.hitT = b.t; }
+      else if (tpHit) { res.hit = "tp"; res.hitT = b.t; }
+    }
+  }
+  return res;
+}
+
+// ───────────── cálculos de trades ─────────────
+function derive(t, capAntes) {
+  const pts = (t.salida - t.entrada) * t.dir;
+  const bruto = pts * PV * t.ctr;
+  const com = isNum(t.com) ? t.com : 0;
+  const neto = bruto - com;
+  const riesgoPts = isNum(t.sl) ? Math.abs(t.entrada - t.sl) : null;
+  const riesgo = riesgoPts ? riesgoPts * PV * t.ctr : null;
+  const R = riesgo ? neto / riesgo : null;
+  const rrPlan = (riesgoPts && isNum(t.tp)) ? Math.abs(t.tp - t.entrada) / riesgoPts : null;
+  const nocional = t.entrada * PV * t.ctr;
+  return { pts, bruto, neto, riesgo, R, rrPlan, nocional, lev: capAntes > 0 ? nocional / capAntes : null, riesgoPct: (riesgo && capAntes > 0) ? riesgo / capAntes : null, dur: (isNum(t.ts) && isNum(t.te)) ? (t.ts - t.te) / 60 : null };
+}
+function ordenar(list) { return [...list].sort((a, b) => (a.te - b.te) || String(a.id).localeCompare(String(b.id))); }
+function computeAll(list) {
+  const cap0 = Number(S.ajustes.capital) || 0;
+  const tr = ordenar(list); let eq = cap0, peak = cap0, maxDD = 0, maxDDp = 0;
+  const rows = [];
+  for (const t of tr) {
+    const d = derive(t, eq); eq += d.neto;
+    if (eq > peak) peak = eq;
+    const dd = eq - peak; if (dd < maxDD) maxDD = dd;
+    const ddp = peak > 0 ? dd / peak : 0; if (ddp < maxDDp) maxDDp = ddp;
+    rows.push({ t, d, eq });
+  }
+  return { rows, cap0, eq, maxDD, maxDDp };
+}
+function resumen(rows) {
+  const n = rows.length, w = rows.filter(r => r.d.neto > 0), l = rows.filter(r => r.d.neto < 0);
+  const gw = w.reduce((a, r) => a + r.d.neto, 0), gl = l.reduce((a, r) => a + r.d.neto, 0);
+  const Rs = rows.map(r => r.d.R).filter(isNum);
+  let racha = 0, rachaMaxW = 0, rachaMaxL = 0, cw = 0, cl = 0;
+  for (const r of rows) {
+    if (r.d.neto > 0) { cw++; cl = 0; } else if (r.d.neto < 0) { cl++; cw = 0; } else { cw = 0; cl = 0; }
+    rachaMaxW = Math.max(rachaMaxW, cw); rachaMaxL = Math.max(rachaMaxL, cl);
+  }
+  if (n) { const last = rows[n - 1].d.neto; racha = last > 0 ? cw : last < 0 ? -cl : 0; }
+  const levs = rows.map(r => r.d.lev).filter(isNum);
+  return {
+    n, w: w.length, l: l.length, be: n - w.length - l.length, wr: n ? w.length / n : null,
+    pnl: gw + gl, pf: gl < 0 ? gw / -gl : (gw > 0 ? Infinity : null), exp: n ? (gw + gl) / n : null,
+    avgW: w.length ? gw / w.length : null, avgL: l.length ? gl / l.length : null,
+    avgR: Rs.length ? Rs.reduce((a, b) => a + b, 0) / Rs.length : null, sumR: Rs.reduce((a, b) => a + b, 0),
+    best: n ? Math.max(...rows.map(r => r.d.neto)) : null, worst: n ? Math.min(...rows.map(r => r.d.neto)) : null,
+    racha, rachaMaxW, rachaMaxL, levMed: levs.length ? levs.reduce((a, b) => a + b, 0) / levs.length : null, levMax: levs.length ? Math.max(...levs) : null,
+  };
+}
+function diaStats(rowsAll, dia) {
+  const rows = rowsAll.filter(r => r.t.fecha === dia);
+  let cum = 0, pk = 0, dd = 0;
+  for (const r of rows) { cum += r.d.neto; pk = Math.max(pk, cum); dd = Math.min(dd, cum - pk); }
+  const i0 = rowsAll.findIndex(r => r.t.fecha === dia);
+  const capIni = i0 > 0 ? rowsAll[i0 - 1].eq : (Number(S.ajustes.capital) || 0);
+  return { n: rows.length, pnl: cum, dd, ddp: capIni > 0 ? dd / capIni : 0, capIni };
+}
+function activeTrades() { return S.usandoDemo ? S.demo : S.trades; }
+
+// ───────────── gráficos ─────────────
+const LW = window.LightweightCharts;
+const CHARTS = new Set();
+function chartTheme() {
+  return {
+    layout: { background: { type: "solid", color: css("--surface") }, textColor: css("--muted"), fontFamily: "IBM Plex Mono, ui-monospace, monospace", fontSize: 11 },
+    grid: { vertLines: { color: css("--surface-2") }, horzLines: { color: css("--surface-2") } },
+    rightPriceScale: { borderColor: css("--line") }, timeScale: { borderColor: css("--line"), timeVisible: true, secondsVisible: false },
+    crosshair: { mode: 0 },
+  };
+}
+function newChart(el) {
+  if (!LW) { el.innerHTML = '<div class="chart-empty">No se pudo cargar la librería de gráficos. Revisa tu conexión y recarga la página.</div>'; return null; }
+  el.innerHTML = "";
+  const c = LW.createChart(el, { autoSize: true, ...chartTheme(), localization: { priceFormatter: p => p.toFixed(2) } });
+  const o = { c, el, series: null, lines: [], kind: null };
+  CHARTS.add(o); return o;
+}
+function candleColors() { const p = css("--pos"), n = css("--neg"); return { upColor: p, downColor: n, wickUpColor: p, wickDownColor: n, borderVisible: false }; }
+function retheme() {
+  for (const o of CHARTS) {
+    try {
+      o.c.applyOptions(chartTheme());
+      if (o.kind === "velas" && o.series) o.series.applyOptions(candleColors());
+      if (o.kind === "equity" && o.series) o.series.applyOptions(eqColors());
+      if (o.relevels) o.relevels();
+    } catch (e) { /* gráfico destruido */ }
+  }
+}
+function destroyChart(o) { if (!o) return; try { o.c.remove(); } catch (e) { } CHARTS.delete(o); }
+const shiftFor = tz => t => t + offsetMin(tz, t * 1000) * 60;
+
+// gráfico de velas con niveles y marcadores
+async function drawTrade(holder, t, opts = {}) {
+  // holder: { el, info, seg, chart, tf }
+  const tzK = S.ajustes.tz, tz = tzName(tzK), sh = shiftFor(tz);
+  if (!isNum(t.te)) { destroyChart(holder.chart); holder.chart = null; holder.el.innerHTML = '<div class="chart-empty">Escribe la fecha y la hora de entrada para ver el precio de MNQ en ese momento.</div>'; holder.info.textContent = ""; holder.seg.innerHTML = ""; return null; }
+  const req = (holder.req = (holder.req || 0) + 1);
+  const data = await barsFor(t.te);
+  if (req !== holder.req) return null; // llegó una petición más nueva
+  if (!data.bars.length) {
+    destroyChart(holder.chart); holder.chart = null; holder.seg.innerHTML = "";
+    holder.el.innerHTML = `<div class="chart-empty">No hay velas de MNQ para la sesión del ${esc(data.ses)}.<br>${esc(coberturaTxt())}</div>`;
+    holder.info.textContent = ""; return data;
+  }
+  const opciones = [1, 5, 15, 60].filter(x => x >= data.tf);
+  if (!holder.tf || holder.tf < data.tf) holder.tf = opts.tfDefault && opts.tfDefault >= data.tf ? opts.tfDefault : Math.max(data.tf, 1);
+  holder.seg.innerHTML = opciones.map(x => `<button type="button" data-tf="${x}" aria-pressed="${x === holder.tf}">${x < 60 ? x + "m" : "1h"}</button>`).join("");
+  holder.seg.onclick = e => { const b = e.target.closest("button[data-tf]"); if (!b) return; holder.tf = +b.dataset.tf; drawTrade(holder, t, opts); };
+  const bars = aggregate(data.bars, data.tf, holder.tf);
+  if (!holder.chart || !holder.chart.c || holder.chart.kind !== "velas") { destroyChart(holder.chart); holder.chart = newChart(holder.el); if (!holder.chart) return data; holder.chart.kind = "velas"; holder.chart.series = holder.chart.c.addCandlestickSeries(candleColors()); addLegend(holder.chart, tz); }
+  const ch = holder.chart;
+  ch.series.setData(bars.map(b => ({ time: sh(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
+  const levels = () => {
+    ch.lines.forEach(l => { try { ch.series.removePriceLine(l); } catch (e) { } }); ch.lines = [];
+    const L = [["Entrada", t.entrada, css("--accent"), 0], ["SL", t.sl, css("--neg"), 2], ["TP", t.tp, css("--pos"), 2], ["Salida", t.salida, css("--fg"), 1]];
+    for (const [title, price, color, style] of L) if (isNum(price)) ch.lines.push(ch.series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title }));
+  };
+  levels(); ch.relevels = levels;
+  const sec = holder.tf * 60, mk = [];
+  const bE = barAt(bars, holder.tf, t.te);
+  if (bE) mk.push({ time: sh(bE.t), position: t.dir > 0 ? "belowBar" : "aboveBar", color: css("--accent"), shape: t.dir > 0 ? "arrowUp" : "arrowDown", text: "Entrada" });
+  if (isNum(t.ts)) { const bS = barAt(bars, holder.tf, t.ts); if (bS && (!bE || bS.t !== bE.t)) mk.push({ time: sh(bS.t), position: t.dir > 0 ? "aboveBar" : "belowBar", color: css("--fg"), shape: "circle", text: "Salida" }); }
+  mk.sort((a, b) => a.time - b.time);
+  ch.series.setMarkers(mk);
+  const from = sh(Math.floor(t.te / sec) * sec) - 90 * 60, to = sh(isNum(t.ts) ? t.ts : t.te) + 90 * 60;
+  const a0 = sh(bars[0].t), a1 = sh(bars[bars.length - 1].t);
+  try { ch.c.timeScale().setVisibleRange({ from: Math.max(a0, Math.min(from, a1)), to: Math.min(a1, Math.max(to, a0)) }); } catch (e) { ch.c.timeScale().fitContent(); }
+  const tfTxt = data.tf === 1 ? "velas de 1 minuto" : data.tf === 5 ? "velas de 5 minutos (no hay 1 m para esta fecha)" : "velas de 1 hora (no hay 1 m ni 5 m para esta fecha)";
+  holder.info.textContent = `Sesión ${data.ses} · ${tfTxt}${data.completa === false ? " · sesión en curso" : ""} · horas en ${tzK === "local" ? "tu hora local" : "ET"}`;
+  return data;
+}
+function addLegend(ch, tz) {
+  const lg = document.createElement("div"); lg.className = "legend"; ch.el.appendChild(lg);
+  ch.c.subscribeCrosshairMove(p => {
+    if (!p || !p.time || !p.seriesData) { lg.textContent = ""; return; }
+    const v = p.seriesData.get(ch.series); if (!v) { lg.textContent = ""; return; }
+    const d = new Date(p.time * 1000); const hh = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes());
+    lg.textContent = `${hh}  O ${px(v.open)}  H ${px(v.high)}  L ${px(v.low)}  C ${px(v.close)}`;
+  });
+}
+function eqColors() {
+  return { topLineColor: css("--pos"), topFillColor1: css("--pos-soft"), topFillColor2: "rgba(0,0,0,0)", bottomLineColor: css("--neg"), bottomFillColor1: "rgba(0,0,0,0)", bottomFillColor2: css("--neg-soft"), lineWidth: 2 };
+}
+let EQ = null;
+function drawEquity(all) {
+  const el = $("#eq-chart");
+  if (!all.rows.length) { destroyChart(EQ); EQ = null; el.innerHTML = '<div class="chart-empty">La curva aparece cuando registres tu primer trade.</div>'; $("#eq-sub").textContent = ""; return; }
+  if (!EQ) { EQ = newChart(el); if (!EQ) return; EQ.kind = "equity"; EQ.series = EQ.c.addBaselineSeries({ baseValue: { type: "price", price: all.cap0 }, ...eqColors(), priceLineVisible: false }); EQ.c.applyOptions({ timeScale: { timeVisible: false } }); }
+  EQ.series.applyOptions({ baseValue: { type: "price", price: all.cap0 } });
+  const sh = shiftFor(tzName(S.ajustes.tz)); let prev = -Infinity; const pts = [];
+  const t0 = all.rows[0].t.te - 3600;
+  pts.push({ time: sh(t0), value: all.cap0 }); prev = sh(t0);
+  for (const r of all.rows) { let tt = sh(isNum(r.t.ts) ? r.t.ts : r.t.te); if (tt <= prev) tt = prev + 1; prev = tt; pts.push({ time: tt, value: Math.round(r.eq * 100) / 100 }); }
+  EQ.series.setData(pts); EQ.c.timeScale().fitContent();
+  $("#eq-sub").textContent = `${money(all.cap0, false)} → ${money(all.eq, false)}`;
+}
+
+// ───────────── render: panel ─────────────
+function afterLoad() {
+  S.usandoDemo = false;
+  renderAll();
+}
+function renderAll() {
+  $("#exp-name").textContent = S.ajustes.nombre || DEFAULTS.nombre;
+  renderChipStore(); renderBanners(); renderPanel(); renderSetups(); renderTrades(); renderDiario(); renderLive(false); renderBackup(); if (S.tab === "analisis") renderAnalisis(); fillAjustes();
+}
+function renderChipStore() {
+  const c = $("#chip-store");
+  const [k, txt] = S.modo === "local" ? ["warn", "Guardado en este navegador"] : ["", "Cargando…"];
+  c.className = "chip " + k; c.lastElementChild.textContent = txt;
+}
+function renderChipData() {
+  const c = $("#chip-data");
+  if (!S.indice) { c.className = "chip warn"; c.lastElementChild.textContent = "Precios MNQ: sin índice"; return; }
+  const a = S.indice.actualizado ? new Date(S.indice.actualizado) : null;
+  const horas = a ? (Date.now() - a.getTime()) / 3600000 : Infinity;
+  c.className = "chip " + (horas < 80 ? "ok" : "warn");
+  c.lastElementChild.textContent = a ? `Precios MNQ al ${ymd(partsIn(ET, a.getTime()))} ${hm(partsIn(ET, a.getTime()))} ET` : "Precios MNQ";
+}
+function renderBanners() {
+  const b = $("#banners"); const out = [];
+  if (S.modo === "local" && S.avisoLocal) out.push(`<div class="banner"><span>${esc(S.avisoLocal)}</span></div>`);
+  if (S.trades.length) {
+    const all = computeAll(S.trades), hoy = todayIn(tzName(S.ajustes.tz)), ds = diaStats(all.rows, hoy);
+    const lim = Number(S.ajustes.limiteDiario) || 0, mx = Number(S.ajustes.maxTrades) || 0;
+    if (lim > 0 && ds.pnl <= -lim) out.push(`<div class="banner alert"><b>Límite diario alcanzado.</b><span>Hoy vas ${money(ds.pnl)} y tu límite es −$${lim.toFixed(2)}. Tu regla dice parar por hoy.</span></div>`);
+    if (mx > 0 && ds.n >= mx) out.push(`<div class="banner alert"><b>Máximo de trades del día.</b><span>Llevas ${ds.n} de ${mx} trades permitidos hoy.</span></div>`);
+  }
+  b.innerHTML = out.join("");
+}
+function kpi(lbl, v, sub, c = "", big = false) { return `<div class="kpi${big ? " big" : ""}"><span class="lbl">${lbl}</span><span class="v ${c}">${v}</span><span class="s">${sub || "&nbsp;"}</span></div>`; }
+function renderPanel() {
+  const list = activeTrades(), all = computeAll(list), R = resumen(all.rows);
+  const tz = tzName(S.ajustes.tz), hoy = todayIn(tz), mes = hoy.slice(0, 7), sem = weekStart(hoy);
+  const ds = diaStats(all.rows, hoy);
+  const rm = all.rows.filter(r => r.t.fecha.slice(0, 7) === mes), rs = all.rows.filter(r => r.t.fecha >= sem && r.t.fecha <= addDays(sem, 6));
+  const pm = rm.reduce((a, r) => a + r.d.neto, 0), ps = rs.reduce((a, r) => a + r.d.neto, 0);
+  const ret = all.cap0 > 0 ? (all.eq - all.cap0) / all.cap0 : null;
+  $("#kpis").innerHTML = [
+    kpi("Capital actual", money(all.eq, false), `Inicial ${money(all.cap0, false)} · ${pct(ret)}`, "", true),
+    kpi("PnL total", money(R.pnl), `${R.n} trades`, cls(R.pnl)),
+    kpi("Win rate", R.wr == null ? "—" : pctU(R.wr), `${R.w} G · ${R.l} P · ${R.be} BE`),
+    kpi("Máx. drawdown", money(all.maxDD), pct(all.maxDDp) + " desde el pico", all.maxDD < 0 ? "neg" : ""),
+    kpi("PnL hoy", money(ds.pnl), `${ds.n} trade${ds.n === 1 ? "" : "s"} hoy`, cls(ds.pnl)),
+    kpi("Drawdown hoy", money(ds.dd), pct(ds.ddp) + " del capital", ds.dd < 0 ? "neg" : ""),
+    kpi("PnL semana", money(ps), `${rs.length} trades`, cls(ps)),
+    kpi("PnL mes", money(pm), `${rm.length} trades · ${MESES[+mes.slice(5) - 1]}`, cls(pm)),
+  ].join("");
+  const pf = R.pf === Infinity ? "∞" : isNum(R.pf) ? R.pf.toFixed(2) : "—";
+  const rachaTxt = R.racha > 0 ? `${R.racha} ganados` : R.racha < 0 ? `${-R.racha} perdidos` : "—";
+  $("#stats2").innerHTML = [
+    ["Profit factor", pf], ["Expectativa", money(R.exp)], ["R medio", rr(R.avgR)], ["R acumulado", rr(R.sumR)],
+    ["Ganador medio", money(R.avgW)], ["Perdedor medio", money(R.avgL)], ["Mejor", money(R.best)], ["Peor", money(R.worst)],
+    ["Racha actual", rachaTxt], ["Racha máx.", `${R.rachaMaxW} G / ${R.rachaMaxL} P`],
+    ["Apalancamiento medio", isNum(R.levMed) ? R.levMed.toFixed(1) + "×" : "—"], ["Máx.", isNum(R.levMax) ? R.levMax.toFixed(1) + "×" : "—"],
+  ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  drawEquity(all); renderCal(all); renderRecent(all);
+}
+function renderCal(all) {
+  const [y, m] = S.calMes.split("-").map(Number);
+  $("#cal-mes").textContent = `${MESES[m - 1]} ${y}`;
+  const jdias = new Set(S.journal.map(j => j.fecha));
+  const porDia = new Map();
+  for (const r of all.rows) { const k = r.t.fecha; const v = porDia.get(k) || { pnl: 0, n: 0, w: 0 }; v.pnl += r.d.neto; v.n++; if (r.d.neto > 0) v.w++; porDia.set(k, v); }
+  const first = `${y}-${pad(m)}-01`, start = weekStart(first);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate(), last = `${y}-${pad(m)}-${pad(lastDay)}`;
+  const hoy = todayIn(tzName(S.ajustes.tz));
+  let maxAbs = 1; for (const [k, v] of porDia) if (k.slice(0, 7) === S.calMes) maxAbs = Math.max(maxAbs, Math.abs(v.pnl));
+  const html = DIAS.map(d => `<div class="dn">${d}</div>`).concat(['<div class="dn">Semana</div>']);
+  let mesPnl = 0, mesN = 0, mesW = 0, diasV = 0, diasR = 0;
+  for (let w = start; w <= last; w = addDays(w, 7)) {
+    let sp = 0, sn = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(w, i), v = porDia.get(d), out = d.slice(0, 7) !== S.calMes;
+      let bg = "";
+      if (v && !out) {
+        const a = Math.min(1, Math.abs(v.pnl) / maxAbs) * 0.55 + 0.08;
+        bg = `background: color-mix(in srgb, var(${v.pnl >= 0 ? "--pos" : "--neg"}) ${Math.round(a * 100)}%, var(--surface));`;
+        mesPnl += v.pnl; mesN += v.n; mesW += v.w; if (v.pnl > 0) diasV++; else if (v.pnl < 0) diasR++;
+      }
+      if (v && !out) { sp += v.pnl; sn += v.n; }
+      const tag = v && !out ? "button" : "div";
+      html.push(`<${tag} ${tag === "button" ? `type="button" data-dia="${d}" aria-label="${d}: ${money(v.pnl)}"` : ""} class="cell${out ? " out" : ""}${v && !out ? " has" : ""}${d === hoy ? " today" : ""}" style="${bg}"><span class="d">${+d.slice(8)}${jdias.has(d) && !out ? '<i class="jd" title="Hay entrada de diario"></i>' : ""}</span>${v && !out ? `<span class="p">${moneyC(v.pnl)}</span><span class="n">${v.n} trade${v.n > 1 ? "s" : ""}</span>` : ""}</${tag}>`);
+    }
+    html.push(`<div class="cell week"><span class="d">Sem.</span>${sn ? `<span class="p ${cls(sp)}">${moneyC(sp)}</span><span class="n">${sn} trades</span>` : '<span class="n">—</span>'}</div>`);
+  }
+  $("#cal").innerHTML = html.join("");
+  $("#cal-sum").innerHTML = `<span>Mes <b class="${cls(mesPnl)}">${money(mesPnl)}</b></span><span>Trades <b>${mesN}</b></span><span>Win rate <b>${mesN ? pctU(mesW / mesN) : "—"}</b></span><span>Días verdes / rojos <b>${diasV} / ${diasR}</b></span>`;
+  // franja anual
+  const pm = new Map(); for (const r of all.rows) { const k = r.t.fecha.slice(0, 7); pm.set(k, (pm.get(k) || 0) + r.d.neto); }
+  const yh = [];
+  for (let i = 1; i <= 12; i++) { const k = `${y}-${pad(i)}`, v = pm.get(k); yh.push(`<button type="button" data-mes="${k}" class="${k === S.calMes ? "sel" : ""}" aria-label="${MESES[i - 1]} ${y}"><span>${MESES[i - 1].slice(0, 3)}</span><span class="p ${cls(v)}">${v == null ? "·" : moneyC(v)}</span></button>`); }
+  $("#yr").innerHTML = yh.join("");
+}
+function rowHtml(r, demo) {
+  const t = r.t, d = r.d, tz = tzName(S.ajustes.tz);
+  return `<tr data-id="${esc(t.id)}" class="${S.sel === t.id ? "sel" : ""}">
+    <td class="l">${esc(t.fecha)}${demo ? ' <span class="tag ej">ejemplo</span>' : ""}</td><td class="num">${isNum(t.te) ? fmtTime(t.te, tz) : esc(t.he)}</td>
+    <td class="l"><span class="tag ${t.dir > 0 ? "long" : "short"}">${t.dir > 0 ? "Largo" : "Corto"}</span></td>
+    <td class="num">${t.ctr}</td><td class="num">${px(t.entrada)}</td><td class="num">${px(t.sl)}</td><td class="num">${px(t.tp)}</td><td class="num">${px(t.salida)}</td>
+    <td class="num ${cls(d.pts)}">${isNum(d.pts) ? (d.pts > 0 ? "+" : "") + d.pts.toFixed(2) : "—"}</td>
+    <td class="num ${cls(d.neto)}">${money(d.neto)}</td><td class="num ${cls(d.R)}">${rr(d.R)}</td>
+    <td class="l">${esc(t.setup || "")}</td><td class="l">${t.reglas ? "Sí" : "No"}</td></tr>`;
+}
+const HEAD = `<thead><tr><th class="l">Fecha</th><th>Hora</th><th class="l">Dir.</th><th>Ctr.</th><th>Entrada</th><th>SL</th><th>TP</th><th>Salida</th><th>Pts</th><th>PnL neto</th><th>R</th><th class="l">Setup</th><th class="l">Plan</th></tr></thead>`;
+function renderRecent(all) {
+  const rows = [...all.rows].reverse().slice(0, 8);
+  $("#tbl-recent").innerHTML = rows.length ? HEAD + "<tbody>" + rows.map(r => rowHtml(r, S.usandoDemo)).join("") + "</tbody>" : `<tbody><tr><td class="empty" style="text-align:center">Todavía no hay trades.</td></tr></tbody>`;
+}
+
+// ───────────── render: trades ─────────────
+function renderSetups() {
+  const s = [...new Set(activeTrades().map(t => t.setup).filter(Boolean))].sort();
+  const cur = $("#f-setup").value;
+  $("#f-setup").innerHTML = '<option value="">Todos</option>' + s.map(x => `<option ${x === cur ? "selected" : ""}>${esc(x)}</option>`).join("");
+  $("#setups").innerHTML = [...new Set(S.trades.map(t => t.setup).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join("");
+}
+function filtered(all) {
+  const per = $("#f-per").value, dir = $("#f-dir").value, st = $("#f-setup").value, res = $("#f-res").value;
+  const hoy = todayIn(tzName(S.ajustes.tz)), sem = weekStart(hoy);
+  return all.rows.filter(r => {
+    const f = r.t.fecha;
+    if (per === "hoy" && f !== hoy) return false;
+    if (per === "semana" && (f < sem || f > addDays(sem, 6))) return false;
+    if (per === "mes" && f.slice(0, 7) !== hoy.slice(0, 7)) return false;
+    if (per === "dia" && f !== $("#f-dia").value) return false;
+    if (dir && String(r.t.dir) !== dir) return false;
+    if (st && r.t.setup !== st) return false;
+    if (res === "w" && !(r.d.neto > 0)) return false;
+    if (res === "l" && !(r.d.neto < 0)) return false;
+    if (res === "be" && r.d.neto !== 0) return false;
+    return true;
+  });
+}
+function renderTrades() {
+  $("#f-dia-w").hidden = $("#f-per").value !== "dia";
+  const all = computeAll(activeTrades()), rows = filtered(all).reverse();
+  const sum = rows.reduce((a, r) => a + r.d.neto, 0), w = rows.filter(r => r.d.neto > 0).length;
+  $("#f-count").innerHTML = `${rows.length} trades · <span class="${cls(sum)} num">${money(sum)}</span> · WR ${rows.length ? pctU(w / rows.length) : "—"}`;
+  $("#tbl-all").innerHTML = rows.length ? HEAD + "<tbody>" + rows.map(r => rowHtml(r, S.usandoDemo)).join("") + "</tbody>" : `<tbody><tr><td class="empty" style="text-align:center">No hay trades con estos filtros.</td></tr></tbody>`;
+  if (S.sel && !all.rows.some(r => r.t.id === S.sel)) S.sel = null;
+  if (!S.sel && rows.length) S.sel = rows[0].t.id;
+  renderDetail(all);
+}
+const DET = { el: null, info: null, seg: null, chart: null, tf: null, tradeId: null };
+function renderDetail(all) {
+  const box = $("#detail"); const r = all.rows.find(x => x.t.id === S.sel);
+  if (!r) { destroyChart(DET.chart); DET.chart = null; box.innerHTML = '<div class="empty">Selecciona un trade para ver su gráfico y su detalle.</div>'; return; }
+  const t = r.t, d = r.d, tz = tzName(S.ajustes.tz), demo = S.usandoDemo;
+  const same = DET.tradeId === t.id && DET.el && box.contains(DET.el);
+  const ver = DET.lastVer && DET.lastVer.id === t.id ? DET.lastVer.html : "";
+  const right = `<div style="display:grid;gap:12px;align-content:start">
+      <dl class="kv">
+        <dt>PnL neto</dt><dd class="${cls(d.neto)}">${money(d.neto)}</dd>
+        <dt>Bruto / comisión</dt><dd>${money(d.bruto)} / ${money(-(t.com || 0))}</dd>
+        <dt>Puntos</dt><dd>${(d.pts > 0 ? "+" : "") + d.pts.toFixed(2)}</dd>
+        <dt>R obtenido</dt><dd class="${cls(d.R)}">${rr(d.R)}</dd>
+        <dt>R:R planeado</dt><dd>${isNum(d.rrPlan) ? "1 : " + d.rrPlan.toFixed(2) : "—"}</dd>
+        <dt>Riesgo</dt><dd>${money(d.riesgo, false)} (${pctU(d.riesgoPct, 2)})</dd>
+        <dt>Nocional</dt><dd>${money(d.nocional, false)}</dd>
+        <dt>Apalancamiento</dt><dd>${isNum(d.lev) ? d.lev.toFixed(1) + "×" : "—"}</dd>
+        <dt>Duración</dt><dd>${isNum(d.dur) ? Math.round(d.dur) + " min" : "—"}</dd>
+        <dt>Capital después</dt><dd>${money(r.eq, false)}</dd>
+        <dt>Emoción</dt><dd>${esc(t.emo || "—")}</dd>
+        <dt>Plan respetado</dt><dd>${t.reglas ? "Sí" : "No"}</dd>
+      </dl>
+      ${t.notas ? `<div class="note">${esc(t.notas)}</div>` : ""}
+      <div id="det-verif">${ver}</div>
+      <div class="inline-btns" id="det-acts">${demo ? '<span class="help">Trade de ejemplo: no se puede editar.</span>' : `<button type="button" data-act="edit" data-id="${esc(t.id)}">Editar</button><button type="button" data-act="dup" data-id="${esc(t.id)}">Duplicar</button><button type="button" class="danger" data-act="del" data-id="${esc(t.id)}">Borrar</button>`}</div>
+    </div>`;
+  if (!same) {
+    destroyChart(DET.chart); DET.chart = null; DET.tf = null; DET.lastVer = null;
+    box.innerHTML = `<div class="panel-h"><h2>${esc(t.fecha)} · ${t.dir > 0 ? "Largo" : "Corto"} ${t.ctr} MNQ · ${isNum(t.te) ? fmtTime(t.te, tz) : ""}${isNum(t.ts) ? "–" + fmtTime(t.ts, tz) : ""}${t.setup ? " · " + esc(t.setup) : ""}</h2><div class="inline-btns" style="align-items:center"><div class="seg" id="det-tf"></div></div></div>
+      <div class="detail"><div style="display:grid;gap:6px;min-width:0"><div class="chart tall" id="det-chart"></div><span class="muted" id="det-info" style="font-size:12px"></span></div><div id="det-right"></div></div>`;
+    DET.el = $("#det-chart"); DET.info = $("#det-info"); DET.seg = $("#det-tf"); DET.tradeId = t.id;
+    $("#det-right").innerHTML = right;
+    drawTrade(DET, t, { tfDefault: 1 }).then(data => {
+      if (DET.tradeId !== t.id) return;
+      const v = verificar(t, data); const html = verifHtml(t, v, data);
+      DET.lastVer = { id: t.id, html }; const vb = $("#det-verif"); if (vb) vb.innerHTML = html;
+    });
+  } else {
+    $("#det-right").innerHTML = right;
+  }
+}
+function verifHtml(t, v, data) {
+  if (!v) return "";
+  const tzk = S.ajustes.tz, tz = tzName(tzk), R1 = isNum(t.sl) ? Math.abs(t.entrada - t.sl) : null;
+  const avisos = [];
+  if (v.entradaOk === false) avisos.push(`El precio de entrada ${px(t.entrada)} no está dentro de la vela de esa hora. Revisa la hora o la zona horaria (Ajustes → Horas que escribo).`);
+  if (v.salidaOk === false) avisos.push(`El precio de salida ${px(t.salida)} no está dentro de la vela de la hora de salida.`);
+  if (v.hit === "sl" && isNum(t.salida) && Math.abs(t.salida - t.sl) > 0.5) avisos.push(`Según los datos tu stop (${px(t.sl)}) se habría ejecutado a las ${fmtTime(v.hitT, tz)}, pero registraste la salida en ${px(t.salida)}. Revisa si moviste el stop o si la hora de entrada es correcta.`);
+  if (v.hit === "tp" && isNum(t.salida) && Math.abs(t.salida - t.tp) > 0.5) avisos.push(`Según los datos el TP (${px(t.tp)}) se tocó a las ${fmtTime(v.hitT, tz)}, pero registraste la salida en ${px(t.salida)}.`);
+  const hitTxt = { tp: "el TP se tocó primero", sl: "el SL se tocó primero", ambos: "SL y TP en la misma vela (no se sabe cuál primero)", ninguno: isNum(t.sl) || isNum(t.tp) ? "ni el SL ni el TP se tocaron antes de tu salida" : "sin SL ni TP para comprobar" }[v.hit];
+  const tfTxt = v.tf === 1 ? "1 m" : v.tf + " m";
+  return `<div class="verif${avisos.length ? " warn" : ""}"><span class="lbl">Comprobación con velas de ${tfTxt}</span>
+    <span>Según el precio, ${hitTxt}${v.hitT ? " a las " + fmtTime(v.hitT, tz) : ""}.</span>
+    <span>Máximo a favor (MFE) <b class="num">${v.mfe.toFixed(2)} pts${R1 ? " · " + (v.mfe / R1).toFixed(2) + "R" : ""}</b> · en contra (MAE) <b class="num">${v.mae.toFixed(2)} pts${R1 ? " · " + (v.mae / R1).toFixed(2) + "R" : ""}</b></span>
+    ${avisos.map(a => `<span style="color:var(--warn)">${esc(a)}</span>`).join("")}</div>`;
+}
+
+// ───────────── análisis ─────────────
+function barList(items, fmt = money) {
+  if (!items.length) return '<p class="muted">Sin datos todavía.</p>';
+  const mx = Math.max(1e-9, ...items.map(x => Math.abs(x.v)));
+  return `<div class="bars">${items.map(x => {
+    const w = Math.abs(x.v) / mx * 50, pos = x.v >= 0;
+    return `<div class="bar-row"><span class="k" title="${esc(x.k)}">${esc(x.k)}</span><span class="track"><i></i><span style="${pos ? "left:50%" : `left:${50 - w}%`};width:${w}%;background:var(${pos ? "--pos" : "--neg"})"></span></span><span class="val ${cls(x.v)}">${fmt(x.v)}<span class="muted"> · ${x.n}</span></span></div>`;
+  }).join("")}</div>`;
+}
+function groupBy(rows, key) {
+  const m = new Map();
+  for (const r of rows) { const k = key(r); if (k == null) continue; const v = m.get(k) || { k, v: 0, n: 0, w: 0 }; v.v += r.d.neto; v.n++; if (r.d.neto > 0) v.w++; m.set(k, v); }
+  return [...m.values()];
+}
+function renderAnalisis() {
+  const all = computeAll(activeTrades()), rows = all.rows, tz = tzName(S.ajustes.tz);
+  const card = (title, sub, body) => `<div class="panel"><div class="panel-h"><h2>${title}</h2><span class="muted" style="font-size:12px">${sub}</span></div>${body}</div>`;
+  const wd = groupBy(rows, r => dow(r.t.fecha)).sort((a, b) => a.k - b.k).map(x => ({ ...x, k: DIAS[x.k] }));
+  const hr = groupBy(rows, r => isNum(r.t.te) ? partsIn(tz, r.t.te * 1000).h : null).sort((a, b) => a.k - b.k).map(x => ({ ...x, k: pad(x.k) + ":00" }));
+  const st = groupBy(rows, r => r.t.setup || "Sin setup").sort((a, b) => b.v - a.v);
+  const dir = groupBy(rows, r => r.t.dir > 0 ? "Largos" : "Cortos");
+  const plan = groupBy(rows, r => r.t.reglas ? "Respeté el plan" : "No respeté el plan");
+  const emo = groupBy(rows, r => r.t.emo || null).sort((a, b) => b.v - a.v);
+  // distribución de R
+  const bins = [[-Infinity, -2, "< −2R"], [-2, -1, "−2 a −1R"], [-1, -0.5, "−1 a −0.5R"], [-0.5, 0, "−0.5 a 0R"], [0, 0.5, "0 a 0.5R"], [0.5, 1, "0.5 a 1R"], [1, 2, "1 a 2R"], [2, 3, "2 a 3R"], [3, Infinity, "> 3R"]];
+  const Rs = rows.map(r => r.d.R).filter(isNum);
+  const hist = bins.map(([a, b, k]) => ({ k, v: Rs.filter(x => x >= a && x < b).length }));
+  const histMax = Math.max(1, ...hist.map(h => h.v));
+  const histHtml = Rs.length ? `<div class="bars">${hist.map((h, i) => `<div class="bar-row"><span class="k">${h.k}</span><span class="track"><span style="left:0;width:${h.v / histMax * 100}%;background:var(${i < 4 ? "--neg" : "--pos"})"></span></span><span class="val">${h.v}</span></div>`).join("")}</div>` : '<p class="muted">Registra el stop loss para medir en R.</p>';
+  const wrList = xs => xs.map(x => `${esc(x.k)}: WR ${pctU(x.w / x.n, 0)}`).join(" · ");
+  $("#ana").innerHTML = [
+    card("Por día de la semana", "PnL neto · trades", barList(wd)),
+    card("Por hora de entrada", S.ajustes.tz === "local" ? "tu hora local" : "hora ET", barList(hr)),
+    card("Por setup", wrList(st.slice(0, 3)), barList(st)),
+    card("Largos vs cortos", wrList(dir), barList(dir)),
+    card("Disciplina", "¿cuánto cuesta saltarse el plan?", barList(plan)),
+    card("Estado emocional", "PnL por emoción declarada", barList(emo)),
+    card("Distribución de R", `${Rs.length} trades con SL`, histHtml),
+  ].join("");
+}
+
+// ───────────── formulario ─────────────
+const FT = { el: null, info: null, seg: null, chart: null, tf: null };
+function openForm(t, dup = false) {
+  S.editId = t && !dup ? t.id : null;
+  $("#ft-title").textContent = S.editId ? "Editar trade" : dup ? "Duplicar trade" : "Registrar trade";
+  const tz = tzName(S.ajustes.tz), now = partsIn(tz, Date.now());
+  const v = (id, x) => { $(id).value = x ?? ""; };
+  if (t) {
+    v("#t-fecha", t.fecha); v("#t-dir", String(t.dir)); v("#t-he", isNum(t.te) ? fmtTime(t.te, tz) : t.he); v("#t-hs", isNum(t.ts) ? fmtTime(t.ts, tz) : (t.hs || ""));
+    v("#t-ent", t.entrada); v("#t-sl", t.sl); v("#t-tp", t.tp); v("#t-sal", t.salida); v("#t-ctr", t.ctr); v("#t-com", t.com);
+    v("#t-setup", t.setup); v("#t-emo", t.emo); $("#t-reglas").checked = !!t.reglas; v("#t-notas", t.notas);
+    if (isNum(t.te)) { const p = partsIn(tz, t.te * 1000); v("#t-fecha", ymd(p)); }
+  } else {
+    v("#t-fecha", ymd(now)); v("#t-dir", "1"); v("#t-he", ""); v("#t-hs", ""); ["#t-ent", "#t-sl", "#t-tp", "#t-sal", "#t-com", "#t-setup", "#t-emo", "#t-notas"].forEach(id => v(id, ""));
+    v("#t-ctr", 1); $("#t-reglas").checked = true; $("#t-com").dataset.auto = "1";
+  }
+  if (t) $("#t-com").dataset.auto = "";
+  $("#t-err").textContent = ""; $("#t-verif").innerHTML = "";
+  $("#ov").hidden = false; document.body.style.overflow = "hidden";
+  FT.el = $("#t-chart"); FT.info = $("#t-info"); FT.seg = $("#t-tf"); FT.tf = null;
+  formChanged(true); setTimeout(() => $("#t-fecha").focus(), 30);
+}
+function closeForm() { $("#ov").hidden = true; document.body.style.overflow = ""; destroyChart(FT.chart); FT.chart = null; FT.key = null; }
+function readForm() {
+  const tzK = S.ajustes.tz, tz = tzName(tzK);
+  const f = { fecha: $("#t-fecha").value, dir: Number($("#t-dir").value) || 1, he: $("#t-he").value, hs: $("#t-hs").value,
+    entrada: toNum($("#t-ent").value), sl: toNum($("#t-sl").value), tp: toNum($("#t-tp").value), salida: toNum($("#t-sal").value),
+    ctr: toNum($("#t-ctr").value), com: toNum($("#t-com").value), setup: $("#t-setup").value.trim(), emo: $("#t-emo").value, reglas: $("#t-reglas").checked, notas: $("#t-notas").value.trim(), tz: tzK };
+  f.te = (f.fecha && f.he) ? zonedToEpoch(f.fecha, f.he, tz) : null;
+  f.ts = (f.fecha && f.hs) ? zonedToEpoch(f.fecha, f.hs, tz) : null;
+  if (isNum(f.te) && isNum(f.ts) && f.ts < f.te) f.ts += 86400; // salida después de medianoche
+  return f;
+}
+function validar(f) {
+  const e = [];
+  if (!f.fecha) e.push("Falta la fecha.");
+  if (!f.he) e.push("Falta la hora de entrada.");
+  if (!isNum(f.entrada) || f.entrada <= 0) e.push("Falta el precio de entrada.");
+  if (!isNum(f.salida) || f.salida <= 0) e.push("Falta el precio de salida (donde terminó).");
+  if (!isNum(f.ctr) || f.ctr < 1 || !Number.isInteger(f.ctr)) e.push("Los contratos deben ser un número entero desde 1.");
+  if (isNum(f.sl) && isNum(f.entrada) && (f.dir > 0 ? f.sl >= f.entrada : f.sl <= f.entrada)) e.push(f.dir > 0 ? "En un largo el stop debe estar debajo de la entrada." : "En un corto el stop debe estar encima de la entrada.");
+  if (isNum(f.tp) && isNum(f.entrada) && (f.dir > 0 ? f.tp <= f.entrada : f.tp >= f.entrada)) e.push(f.dir > 0 ? "En un largo el TP debe estar encima de la entrada." : "En un corto el TP debe estar debajo de la entrada.");
+  if (isNum(f.com) && f.com < 0) e.push("La comisión no puede ser negativa.");
+  return e;
+}
+function capitalAntes(f) {
+  const otros = S.trades.filter(t => t.id !== S.editId && (!isNum(f.te) || t.te < f.te));
+  return (Number(S.ajustes.capital) || 0) + otros.reduce((a, t) => a + derive(t, 1).neto, 0);
+}
+let formTimer = null;
+function formChanged(inmediato = false) {
+  const f = readForm();
+  if ($("#t-com").dataset.auto === "1" && isNum(f.ctr)) { const c = (Number(S.ajustes.comision) || 0) * f.ctr; $("#t-com").value = c ? c.toFixed(2) : ""; f.com = c; }
+  // dirección deducida del stop
+  if (isNum(f.sl) && isNum(f.entrada) && f.sl !== f.entrada && document.activeElement && ["t-sl", "t-ent"].includes(document.activeElement.id)) {
+    const d = f.sl < f.entrada ? 1 : -1; if (d !== f.dir) { $("#t-dir").value = String(d); f.dir = d; }
+  }
+  // calculadora
+  const cap = capitalAntes(f), riesgoObj = cap * (Number(S.ajustes.riesgoPct) || 0) / 100;
+  const rows = [];
+  if (isNum(f.entrada) && isNum(f.sl) && f.sl !== f.entrada) {
+    const rp = Math.abs(f.entrada - f.sl), r1 = rp * PV, sug = Math.floor(riesgoObj / r1);
+    rows.push(["Riesgo por contrato", `${rp.toFixed(2)} pts = ${money(r1, false)}`]);
+    rows.push([`Contratos para arriesgar ${S.ajustes.riesgoPct}% (${money(riesgoObj, false)})`, sug >= 1 ? `${sug}` : `0 (el stop es demasiado ancho para ${money(riesgoObj, false)})`]);
+    if (isNum(f.ctr)) { const rt = r1 * f.ctr; rows.push(["Riesgo de este trade", `${money(rt, false)} · ${pctU(cap > 0 ? rt / cap : null, 2)} del capital`]); }
+    if (isNum(f.tp)) rows.push(["R:R planeado", `1 : ${(Math.abs(f.tp - f.entrada) / rp).toFixed(2)}`]);
+  }
+  if (isNum(f.entrada) && isNum(f.salida) && isNum(f.ctr)) {
+    const d = derive(f, cap);
+    rows.push(["Resultado", `<span class="${cls(d.neto)}">${(d.pts > 0 ? "+" : "") + d.pts.toFixed(2)} pts · ${money(d.neto)}${isNum(d.R) ? " · " + rr(d.R) : ""}</span>`]);
+    rows.push(["Nocional y apalancamiento", `${money(d.nocional, false)} · ${isNum(d.lev) ? d.lev.toFixed(1) + "×" : "—"} sobre ${money(cap, false)}`]);
+  }
+  $("#t-calc").innerHTML = rows.length ? rows.map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join("") : '<span class="muted">Escribe entrada, stop y contratos para ver el riesgo, el R:R y el apalancamiento.</span>';
+  // gráfico (con pausa para no recargar en cada tecla)
+  clearTimeout(formTimer);
+  formTimer = setTimeout(() => updateFormChart(f), inmediato ? 0 : 350);
+}
+async function updateFormChart(f) {
+  const t = { ...f, id: "form" };
+  const data = await drawTrade(FT, t, { tfDefault: 1 });
+  const fill = $("#t-fill"), tz = tzName(S.ajustes.tz);
+  fill.innerHTML = ""; $("#t-verif").innerHTML = "";
+  if (!data || !data.bars.length) return;
+  const be = isNum(f.te) ? barAt(data.bars, data.tf, f.te) : null;
+  const bs = isNum(f.ts) ? barAt(data.bars, data.tf, f.ts) : null;
+  const b = [];
+  if (be) b.push(`<span class="help">Vela ${fmtTime(be.t, tz)}: O ${px(be.o)} H ${px(be.h)} L ${px(be.l)} C ${px(be.c)}</span>`, `<button type="button" class="small" data-fill="t-ent" data-v="${be.o}">Entrada = apertura ${px(be.o)}</button>`, `<button type="button" class="small" data-fill="t-ent" data-v="${be.c}">Entrada = cierre ${px(be.c)}</button>`);
+  else if (isNum(f.te)) b.push(`<span class="help">No hay vela en la hora de entrada (mercado cerrado o sin datos).</span>`);
+  if (bs) b.push(`<button type="button" class="small" data-fill="t-sal" data-v="${bs.c}">Salida = cierre ${fmtTime(bs.t, tz)} ${px(bs.c)}</button>`);
+  fill.innerHTML = b.join("");
+  if (isNum(f.entrada) && (isNum(f.sl) || isNum(f.tp))) $("#t-verif").innerHTML = verifHtml(f, verificar(f, data), data);
+}
+async function submitForm(ev) {
+  ev.preventDefault();
+  if (S.modo === "cargando") { $("#t-err").textContent = "Espera a que cargue tu diario."; return; }
+  const f = readForm(), e = validar(f);
+  if (e.length) { $("#t-err").textContent = e.join(" "); return; }
+  const t = { id: S.editId || ("t_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)), fecha: f.fecha, dir: f.dir, he: f.he, hs: f.hs || "", te: f.te, ts: f.ts,
+    entrada: f.entrada, sl: f.sl, tp: f.tp, salida: f.salida, ctr: f.ctr, com: isNum(f.com) ? f.com : 0, setup: f.setup, emo: f.emo, reglas: f.reglas, notas: f.notas, tz: f.tz,
+    creado: S.editId ? (S.trades.find(x => x.id === S.editId) || {}).creado || Date.now() : Date.now(), editado: Date.now() };
+  // la fecha del diario es la fecha en la zona elegida (coincide con lo escrito)
+  $("#ft-save").disabled = true;
+  try { await saveTrade(t); S.sel = t.id; closeForm(); toast(S.editId ? "Trade actualizado." : "Trade guardado."); S.editId = null; }
+  catch (err) { $("#t-err").textContent = storeErr(err); }
+  finally { $("#ft-save").disabled = false; }
+}
+
+// ───────────── explorador ─────────────
+const EX = { el: null, info: null, seg: null, chart: null, tf: null };
+async function explorar() {
+  const f = $("#x-fecha").value, h = $("#x-hora").value || "09:30";
+  EX.el = $("#x-chart"); EX.info = $("#x-info"); EX.seg = $("#x-tf");
+  if (!f) { EX.el.innerHTML = '<div class="chart-empty">Elige una fecha y una hora.</div>'; return; }
+  const te = zonedToEpoch(f, h, tzName(S.ajustes.tz));
+  const data = await drawTrade(EX, { te, dir: 1, entrada: null, sl: null, tp: null, salida: null }, { tfDefault: 1 });
+  if (data && data.bars.length) {
+    const b = barAt(data.bars, data.tf, te);
+    EX.info.textContent += b ? ` · ${h}: O ${px(b.o)} H ${px(b.h)} L ${px(b.l)} C ${px(b.c)}` : ` · Sin vela a las ${h} (mercado cerrado).`;
+    if (b && EX.chart) EX.chart.series.setMarkers([{ time: shiftFor(tzName(S.ajustes.tz))(b.t), position: "aboveBar", color: css("--accent"), shape: "arrowDown", text: h }]);
+  }
+}
+
+// ───────────── ajustes, exportar, importar ─────────────
+function fillAjustes() {
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest("#form-aj")) return;
+  const a = S.ajustes;
+  $("#a-nombre").value = a.nombre; $("#a-capital").value = a.capital; $("#a-riesgo").value = a.riesgoPct; $("#a-com").value = a.comision;
+  $("#a-lim").value = a.limiteDiario; $("#a-max").value = a.maxTrades; $("#a-tz").value = a.tz; $("#a-inicio").value = a.inicio || "";
+  $("#a-tz-help").textContent = `Tu zona horaria: ${LOCAL_TZ}. El mercado se muestra igual en ambas; cambia cómo escribes y lees las horas.`;
+}
+function coberturaTxt() {
+  const i = S.indice; if (!i) return "Sin datos de cobertura.";
+  const r = k => { const ks = Object.keys(i[k] || {}).sort(); return ks.length ? `${ks[0]} → ${ks[ks.length - 1]}` : "—"; };
+  return `1 m: ${r("m1")} · 5 m: ${r("m5")} · 1 h: ${r("h1")}`;
+}
+function renderBackup() {
+  const el = $("#backup-msg"); if (!el) return;
+  const t = S.ajustes.ultimoRespaldo, n = S.trades.length + S.journal.length;
+  if (!n) { el.textContent = "Aún no hay datos que respaldar."; el.style.color = ""; return; }
+  const dias = t ? (Date.now() - t) / 86400000 : Infinity;
+  el.textContent = t ? `Último respaldo: ${new Date(t).toLocaleDateString()} (hace ${Math.floor(dias)} días).` : "Todavía no has exportado ninguna copia. Tus datos viven solo en este navegador.";
+  el.style.color = dias > 14 ? "var(--warn)" : "";
+}
+function renderCobertura() { const el = $("#data-cov"); if (el) el.innerHTML = `<span>${esc(coberturaTxt())}</span><span>Última actualización: <b>${S.indice && S.indice.actualizado ? esc(new Date(S.indice.actualizado).toLocaleString()) : "—"}</b></span>`; }
+async function offerFile(filename, data) {
+  $("#dump-w").hidden = true;
+  try {
+    const type = filename.endsWith(".csv") ? "text/csv;charset=utf-8" : "application/json";
+    const url = URL.createObjectURL(new Blob([data], { type }));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    if (filename.endsWith(".json")) { S.ajustes.ultimoRespaldo = Date.now(); try { lsWrite(); } catch (e) { } renderBackup(); }
+    return;
+  } catch (e) { /* cae al texto */ }
+  $("#dump").textContent = data; $("#dump-w").hidden = false;
+}
+function csvCell(v) { const s = String(v ?? ""); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function exportCsv() {
+  const all = computeAll(S.trades), tz = tzName(S.ajustes.tz);
+  const head = ["fecha", "hora_entrada", "hora_salida", "zona", "direccion", "contratos", "entrada", "sl", "tp", "salida", "puntos", "pnl_bruto", "comision", "pnl_neto", "R", "riesgo_usd", "apalancamiento", "capital_despues", "setup", "emocion", "plan_respetado", "notas"];
+  const lines = [head.join(",")];
+  for (const r of all.rows) { const t = r.t, d = r.d; lines.push([t.fecha, isNum(t.te) ? fmtTime(t.te, tz) : t.he, isNum(t.ts) ? fmtTime(t.ts, tz) : t.hs, S.ajustes.tz === "local" ? LOCAL_TZ : "ET", t.dir > 0 ? "largo" : "corto", t.ctr, t.entrada, t.sl ?? "", t.tp ?? "", t.salida, d.pts.toFixed(2), d.bruto.toFixed(2), (t.com || 0).toFixed(2), d.neto.toFixed(2), isNum(d.R) ? d.R.toFixed(3) : "", isNum(d.riesgo) ? d.riesgo.toFixed(2) : "", isNum(d.lev) ? d.lev.toFixed(2) : "", r.eq.toFixed(2), t.setup || "", t.emo || "", t.reglas ? "si" : "no", t.notas || ""].map(csvCell).join(",")); }
+  return lines.join("\n");
+}
+async function importJson(file) {
+  const msg = $("#im-msg"); msg.textContent = "Leyendo…";
+  try {
+    const j = JSON.parse(await file.text());
+    const list = Array.isArray(j) ? j : j.trades;
+    if (!Array.isArray(list)) throw new Error("El archivo no tiene una lista de trades.");
+    let ok = 0;
+    for (const t of list) {
+      if (!t || typeof t !== "object" || !isNum(t.entrada) || !isNum(t.salida) || !t.fecha) continue;
+      const id = /^t_[A-Za-z0-9_-]{3,60}$/.test(String(t.id)) ? t.id : "t_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      await saveTrade({ ...t, id }); ok++;
+    }
+    let nj = 0;
+    for (const e of (Array.isArray(j.diario) ? j.diario : [])) {
+      if (!e || typeof e !== "object" || !e.fecha) continue;
+      const id = /^j_[A-Za-z0-9_-]{3,60}$/.test(String(e.id)) ? e.id : "j_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      await saveEntry({ ...e, id }); nj++;
+    }
+    if (j.ajustes && typeof j.ajustes === "object") await saveAjustes({ ...DEFAULTS, ...S.ajustes, ...j.ajustes });
+    msg.textContent = `Importados ${ok} trades y ${nj} entradas de diario.`;
+  } catch (e) { msg.textContent = "No se pudo importar: " + (e.message || storeErr(e)); }
+}
+
+// ───────────── en vivo ─────────────
+function mercadoAbierto(ms) {
+  const p = partsIn(ET, ms), m = p.h * 60 + p.mi;
+  if (p.wd === "Sat") return false;
+  if (p.wd === "Fri" && m >= 17 * 60) return false;
+  if (p.wd === "Sun" && m < 18 * 60) return false;
+  if (m >= 17 * 60 && m < 18 * 60) return false;
+  return true;
+}
+function haceTxt(sec) {
+  if (sec < 90) return "hace " + Math.max(0, Math.round(sec)) + " s";
+  if (sec < 5400) return "hace " + Math.round(sec / 60) + " min";
+  if (sec < 172800) return "hace " + Math.round(sec / 3600) + " h";
+  return "hace " + Math.round(sec / 86400) + " días";
+}
+const LV = { chart: null, tf: 1, key: null, centrado: false };
+function liveBars() {
+  const L = S.live; if (!L || !L.bars || !Array.isArray(L.bars.t)) return [];
+  const b = L.bars, out = [];
+  for (let i = 0; i < b.t.length; i++) out.push({ t: b.t[i], o: b.o[i], h: b.h[i], l: b.l[i], c: b.c[i], v: 0 });
+  return out;
+}
+function liveStatus() {
+  const L = S.live, now = Date.now(), abierto = mercadoAbierto(now);
+  const age = L && isNum(L.t) ? (now / 1000 - L.t) : null;
+  let est = "", k = "";
+  if (!L) { est = "Sin datos"; k = ""; }
+  else if (abierto && age != null && age > 30 * 60) { est = "Datos con retraso"; k = "late"; }
+  else if (abierto) { est = "Mercado abierto"; k = "on"; }
+  else { est = "Mercado cerrado"; k = ""; }
+  return { est, k, age, abierto };
+}
+function renderLiveAge() {
+  const L = S.live, st = liveStatus();
+  const chip = $("#chip-live");
+  if (!L || !isNum(L.last)) { chip.className = "chip"; chip.lastElementChild.textContent = "MNQ en vivo: sin datos"; }
+  else {
+    const ch = isNum(L.prev) ? L.last - L.prev : null;
+    chip.className = "chip " + (st.k === "on" ? "ok" : st.k === "late" ? "bad" : "");
+    chip.lastElementChild.textContent = `MNQ ${px(L.last)}${ch != null ? " · " + (ch >= 0 ? "+" : "−") + Math.abs(ch).toFixed(2) : ""} · ${st.age != null ? haceTxt(st.age) : ""}`;
+  }
+  const e = $("#lv-state"); if (e) { e.className = "state " + st.k; e.textContent = st.est; }
+  const a = $("#lv-age"); if (a) a.textContent = L && st.age != null ? "Último dato " + haceTxt(st.age) + " · " + fmtTime(L.t, tzName(S.ajustes.tz)) + (S.ajustes.tz === "local" ? "" : " ET") : "";
+}
+function renderLive(full) {
+  renderLiveAge();
+  if (!full && S.tab !== "vivo") return;
+  if (S.tab !== "vivo") return;
+  const L = S.live, el = $("#lv-chart");
+  if (!L || !isNum(L.last)) {
+    $("#lv-px").textContent = "—"; $("#lv-chg").textContent = ""; $("#lv-stats").innerHTML = "";
+    destroyChart(LV.chart); LV.chart = null; el.innerHTML = '<div class="chart-empty">Todavía no hay datos en vivo. Se llenan automáticamente cuando corre la actualización de precios.</div>'; return;
+  }
+  const ch = isNum(L.prev) ? L.last - L.prev : null, chp = (ch != null && L.prev) ? ch / L.prev : null;
+  const pxEl = $("#lv-px"); pxEl.textContent = px(L.last);
+  const c = $("#lv-chg"); c.className = "num " + cls(ch); c.textContent = ch != null ? `${ch >= 0 ? "+" : "−"}${Math.abs(ch).toFixed(2)} pts · ${pct(chp, 2)} vs. cierre previo` : "";
+  const rng = isNum(L.hi) && isNum(L.lo) ? L.hi - L.lo : null;
+  $("#lv-stats").innerHTML = [["Máximo", px(L.hi)], ["Mínimo", px(L.lo)], ["Rango", rng != null ? rng.toFixed(2) + " pts" : "—"], ["Cierre previo", px(L.prev)], ["1 punto = ", "$2 por contrato"]].map(([k, v]) => `<div><span class="lbl">${k}</span><b>${v}</b></div>`).join("");
+  $("#lv-note").textContent = `Sesión ${L.ses || ""} · ${L.fuente || "Yahoo Finance MNQ=F"} · el precio se actualiza cuando el servidor recibe datos nuevos, no tick a tick; puede tener unos minutos de retraso respecto a tu bróker.`;
+  const tz = tzName(S.ajustes.tz), sh = shiftFor(tz);
+  const bars = aggregate(liveBars(), 1, LV.tf);
+  if (!bars.length) return;
+  const key = L.ses + "|" + S.ajustes.tz;
+  if (!LV.chart || LV.key !== key) {
+    destroyChart(LV.chart); LV.chart = newChart(el); if (!LV.chart) return;
+    LV.key = key; LV.centrado = false; LV.chart.kind = "velas"; LV.chart.series = LV.chart.c.addCandlestickSeries(candleColors()); addLegend(LV.chart, tz);
+  }
+  const ch2 = LV.chart;
+  ch2.series.setData(bars.map(b => ({ time: sh(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
+  const levels = () => {
+    ch2.lines.forEach(l => { try { ch2.series.removePriceLine(l); } catch (e) { } }); ch2.lines = [];
+    if (isNum(L.prev)) ch2.lines.push(ch2.series.createPriceLine({ price: L.prev, color: css("--muted"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Cierre previo" }));
+  };
+  levels(); ch2.relevels = levels;
+  // tus trades de esta sesión
+  const mk = [];
+  for (const t of S.trades) {
+    if (!isNum(t.te) || sessionOf(t.te) !== L.ses) continue;
+    const be = barAt(bars, LV.tf, t.te); if (be) mk.push({ time: sh(be.t), position: t.dir > 0 ? "belowBar" : "aboveBar", color: css("--accent"), shape: t.dir > 0 ? "arrowUp" : "arrowDown", text: "Entrada" });
+    if (isNum(t.ts)) { const bs = barAt(bars, LV.tf, t.ts); if (bs) mk.push({ time: sh(bs.t), position: t.dir > 0 ? "aboveBar" : "belowBar", color: css("--fg"), shape: "circle", text: "Salida" }); }
+  }
+  mk.sort((a, b) => a.time - b.time); ch2.series.setMarkers(mk);
+  if (!LV.centrado) { const n = bars.length, from = bars[Math.max(0, n - 150)].t, to = bars[n - 1].t + LV.tf * 60 * 8; try { ch2.c.timeScale().setVisibleRange({ from: sh(from), to: sh(to) }); } catch (e) { ch2.c.timeScale().fitContent(); } LV.centrado = true; }
+  // trades de hoy
+  const hoy = todayIn(tz), all = computeAll(S.trades), rows = all.rows.filter(r => r.t.fecha === hoy).reverse();
+  $("#tbl-today").innerHTML = rows.length ? HEAD + "<tbody>" + rows.map(r => rowHtml(r, false)).join("") + "</tbody>" : `<tbody><tr><td class="empty" style="text-align:center">Todavía no registraste trades hoy (${esc(hoy)}).</td></tr></tbody>`;
+}
+setInterval(() => { try { renderLiveAge(); } catch (e) { } }, 20000);
+
+// ───────────── diario ─────────────
+function diaPnl(fecha) {
+  const all = computeAll(S.trades), rows = all.rows.filter(r => r.t.fecha === fecha);
+  return { n: rows.length, pnl: rows.reduce((a, r) => a + r.d.neto, 0), w: rows.filter(r => r.d.neto > 0).length };
+}
+function fechaLarga(f) { const [y, m, d] = f.split("-").map(Number); return `${DIAS[dow(f)]} ${d} de ${MESES[m - 1]} de ${y}`; }
+function moodHtml(n) { if (!isNum(n)) return ""; return `<span class="mood" title="Ánimo ${n} de 5" aria-label="Ánimo ${n} de 5">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`; }
+function renderDiario() {
+  const meses = [...new Set(S.journal.map(j => j.fecha.slice(0, 7)))].sort().reverse(), cur = $("#j-mes").value;
+  $("#j-mes").innerHTML = '<option value="">Todos</option>' + meses.map(m => `<option value="${m}" ${m === cur ? "selected" : ""}>${MESES[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join("");
+  const q = $("#j-q").value.trim().toLowerCase(), mes = $("#j-mes").value, an = $("#j-animo").value;
+  let list = [...S.journal].sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.creado || 0) - (a.creado || 0));
+  list = list.filter(j => (!mes || j.fecha.startsWith(mes)) && (!an || String(j.animo) === an) && (!q || [j.titulo, j.texto, j.bien, j.mejorar, j.plan, (j.tags || []).join(" ")].join(" ").toLowerCase().includes(q)));
+  $("#j-count").textContent = `${list.length} de ${S.journal.length} entradas`;
+  if (!S.journal.length) { $("#j-list").innerHTML = '<div class="empty panel">Tu diario está vacío. Escribe cuando quieras: cómo viste el mercado, cómo te sentiste, qué aprendiste. Usa <b>+ Nueva entrada</b>.</div>'; return; }
+  if (!list.length) { $("#j-list").innerHTML = '<div class="empty panel">Ninguna entrada coincide con los filtros.</div>'; return; }
+  $("#j-list").innerHTML = list.map(j => {
+    const d = diaPnl(j.fecha), sec = (k, t) => j[k] ? `<div class="jsec"><span class="lbl">${t}</span><span class="jtext">${esc(j[k])}</span></div>` : "";
+    return `<article class="jcard" data-jid="${esc(j.id)}">
+      <div class="jhead"><span class="jdate">${esc(fechaLarga(j.fecha))}</span>${moodHtml(j.animo)}${d.n ? `<span class="tag ${d.pnl >= 0 ? "long" : "short"}">${d.n} trade${d.n > 1 ? "s" : ""} · ${money(d.pnl)}</span>` : '<span class="tag">Sin trades</span>'}<span style="flex:1"></span>
+        <span class="inline-btns"><button type="button" class="small" data-jact="edit" data-id="${esc(j.id)}">Editar</button><button type="button" class="small danger" data-jact="del" data-id="${esc(j.id)}">Borrar</button></span></div>
+      ${j.titulo ? `<h3>${esc(j.titulo)}</h3>` : ""}
+      ${(j.tags || []).length ? `<div class="inline-btns">${j.tags.map(t => `<span class="tagc">${esc(t)}</span>`).join("")}</div>` : ""}
+      ${j.texto ? `<div class="jtext">${esc(j.texto)}</div>` : ""}${sec("bien", "Lo que hice bien")}${sec("mejorar", "Lo que debo mejorar")}${sec("plan", "Plan para la próxima sesión")}
+    </article>`;
+  }).join("");
+}
+const JF = { id: null, animo: null };
+const DRAFT_KEY = "bitacora_mnq_borrador_diario";
+function setAnimo(n) { JF.animo = n; $$("#j-animo-pick button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === n))); }
+function jDia() {
+  const f = $("#j-fecha").value; if (!f) { $("#j-dia").innerHTML = ""; return; }
+  const d = diaPnl(f);
+  $("#j-dia").innerHTML = d.n ? `<div class="row"><span>Tus trades del ${esc(f)}</span><b class="${cls(d.pnl)}">${d.n} · ${money(d.pnl)} · ${d.w} ganados</b></div>` : `<div class="row"><span>Tus trades del ${esc(f)}</span><b>ninguno registrado</b></div>`;
+}
+function openJournal(e) {
+  JF.id = e ? e.id : null;
+  $("#fj-title").textContent = e ? "Editar entrada" : "Nueva entrada de diario";
+  let b = null; if (!e) { try { b = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (x) { b = null; } }
+  const v = e || b || {};
+  $("#j-fecha").value = v.fecha || todayIn(tzName(S.ajustes.tz)); $("#j-titulo").value = v.titulo || ""; $("#j-tags").value = (v.tags || []).join(", ");
+  $("#j-texto").value = v.texto || ""; $("#j-bien").value = v.bien || ""; $("#j-mejorar").value = v.mejorar || ""; $("#j-plan").value = v.plan || "";
+  setAnimo(isNum(v.animo) ? v.animo : null);
+  $("#j-err").textContent = ""; $("#j-draft").textContent = b && !e ? "Recuperé tu borrador sin guardar." : "";
+  jDia(); $("#ov-j").hidden = false; document.body.style.overflow = "hidden"; setTimeout(() => $("#j-texto").focus(), 30);
+}
+function closeJournal() { $("#ov-j").hidden = true; document.body.style.overflow = ""; }
+function readJournal() {
+  return { fecha: $("#j-fecha").value, titulo: $("#j-titulo").value.trim(), animo: JF.animo, tags: $("#j-tags").value.split(",").map(x => x.trim()).filter(Boolean).slice(0, 12),
+    texto: $("#j-texto").value.trim(), bien: $("#j-bien").value.trim(), mejorar: $("#j-mejorar").value.trim(), plan: $("#j-plan").value.trim() };
+}
+let draftT = null;
+function saveDraft() {
+  if (JF.id) return; clearTimeout(draftT);
+  draftT = setTimeout(() => { const d = readJournal(); const vacio = !(d.titulo || d.texto || d.bien || d.mejorar || d.plan || d.tags.length); try { if (vacio) localStorage.removeItem(DRAFT_KEY); else localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) { } }, 500);
+}
+
+// ───────────── eventos ─────────────
+function setTab(k) {
+  S.tab = k;
+  $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
+  ["panel", "vivo", "trades", "diario", "analisis", "grafico", "ajustes"].forEach(x => { $("#v-" + x).hidden = x !== k; });
+  if (k === "vivo") renderLive(true);
+  if (k === "diario") renderDiario();
+  if (k === "analisis") renderAnalisis();
+  if (k === "trades") renderTrades();
+  if (k === "grafico" && !EX.chart) { if (!$("#x-fecha").value) { const s = S.indice && S.indice.m1 ? Object.keys(S.indice.m1).sort().pop() : todayIn(ET); $("#x-fecha").value = s; $("#x-hora").value = "09:30"; } explorar(); }
+}
+document.addEventListener("click", e => {
+  const tab = e.target.closest("nav.tabs button"); if (tab) { setTab(tab.dataset.tab); return; }
+  const act = e.target.closest("[data-act]");
+  if (act) {
+    const a = act.dataset.act, id = act.dataset.id, t = S.trades.find(x => x.id === id);
+    if (a === "new") openForm(null);
+    if (a === "edit" && t) openForm(t);
+    if (a === "dup" && t) openForm({ ...t, te: null, ts: null, he: "", hs: "" }, true);
+    if (a === "del" && t) { act.parentElement.innerHTML = `<span>¿Borrar este trade?</span><button type="button" class="danger" data-act="del-yes" data-id="${esc(id)}">Sí, borrar</button><button type="button" data-act="del-no">No</button>`; }
+    if (a === "del-no") renderTrades();
+    if (a === "del-yes") { deleteTrade(id).then(() => { S.sel = null; toast("Trade borrado."); }).catch(err => toast(storeErr(err))); }
+    return;
+  }
+  const row = e.target.closest("tbody tr[data-id]");
+  if (row) { S.sel = row.dataset.id; if (S.tab !== "trades") setTab("trades"); else renderTrades(); return; }
+  const dia = e.target.closest("[data-dia]");
+  if (dia) { $("#f-per").value = "dia"; $("#f-dia").value = dia.dataset.dia; S.sel = null; setTab("trades"); return; }
+  const mes = e.target.closest("[data-mes]"); if (mes) { S.calMes = mes.dataset.mes; renderPanel(); return; }
+  const fill = e.target.closest("[data-fill]"); if (fill) { $("#" + fill.dataset.fill).value = fill.dataset.v; formChanged(); return; }
+});
+$("#btn-new").addEventListener("click", () => openForm(null));
+$("#j-new").addEventListener("click", () => openJournal(null));
+["#j-q", "#j-mes", "#j-animo"].forEach(id => $(id).addEventListener("input", renderDiario));
+$("#j-list").addEventListener("click", e => {
+  const b = e.target.closest("[data-jact]"); if (!b) return;
+  const a = b.dataset.jact, id = b.dataset.id, j = S.journal.find(x => x.id === id);
+  if (a === "edit" && j) openJournal(j);
+  if (a === "del" && j) b.parentElement.innerHTML = `<span>¿Borrar esta entrada?</span><button type="button" class="small danger" data-jact="del-yes" data-id="${esc(id)}">Sí, borrar</button><button type="button" class="small" data-jact="del-no">No</button>`;
+  if (a === "del-no") renderDiario();
+  if (a === "del-yes") deleteEntry(id).then(() => toast("Entrada borrada.")).catch(err => toast(storeErr(err)));
+});
+$("#j-animo-pick").addEventListener("click", e => { const b = e.target.closest("button[data-v]"); if (!b) return; const n = +b.dataset.v; setAnimo(JF.animo === n ? null : n); saveDraft(); });
+$("#form-j").addEventListener("input", e => { if (e.target.id === "j-fecha") jDia(); saveDraft(); });
+$("#fj-cancel").addEventListener("click", closeJournal);
+$("#ov-j").addEventListener("click", e => { if (e.target.id === "ov-j") closeJournal(); });
+$("#form-j").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  if (S.modo === "cargando") { $("#j-err").textContent = "Espera a que cargue tu diario."; return; }
+  const d = readJournal();
+  if (!d.fecha) { $("#j-err").textContent = "Falta la fecha."; return; }
+  if (!(d.titulo || d.texto || d.bien || d.mejorar || d.plan)) { $("#j-err").textContent = "Escribe algo antes de guardar."; return; }
+  const prev = JF.id ? S.journal.find(x => x.id === JF.id) : null;
+  const e = { ...d, id: JF.id || ("j_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)), creado: prev ? (prev.creado || Date.now()) : Date.now(), editado: Date.now() };
+  $("#fj-save").disabled = true;
+  try { await saveEntry(e); if (!JF.id) { try { localStorage.removeItem(DRAFT_KEY); } catch (x) { } } closeJournal(); toast(JF.id ? "Entrada actualizada." : "Entrada guardada."); }
+  catch (err) { $("#j-err").textContent = storeErr(err); }
+  finally { $("#fj-save").disabled = false; }
+});
+$("#lv-tf").addEventListener("click", e => { const b = e.target.closest("button[data-tf]"); if (!b) return; LV.tf = +b.dataset.tf; LV.centrado = false; $$("#lv-tf button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); renderLive(true); });
+$("#go-trades").addEventListener("click", () => setTab("trades"));
+$("#cal-prev").addEventListener("click", () => { const [y, m] = S.calMes.split("-").map(Number); const d = new Date(Date.UTC(y, m - 2, 1)); S.calMes = d.toISOString().slice(0, 7); renderPanel(); });
+$("#cal-next").addEventListener("click", () => { const [y, m] = S.calMes.split("-").map(Number); const d = new Date(Date.UTC(y, m, 1)); S.calMes = d.toISOString().slice(0, 7); renderPanel(); });
+$("#cal-hoy").addEventListener("click", () => { S.calMes = todayIn(tzName(S.ajustes.tz)).slice(0, 7); renderPanel(); });
+["#f-per", "#f-dir", "#f-setup", "#f-res", "#f-dia"].forEach(id => $(id).addEventListener("change", () => { S.sel = null; renderTrades(); }));
+$("#form-t").addEventListener("submit", submitForm);
+$("#form-t").addEventListener("input", e => { if (e.target.id === "t-com") $("#t-com").dataset.auto = ""; formChanged(); });
+$("#form-t").addEventListener("change", () => formChanged());
+$("#ft-cancel").addEventListener("click", closeForm);
+$("#ov").addEventListener("click", e => { if (e.target.id === "ov") closeForm(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#ov").hidden) closeForm(); else if (!$("#ov-j").hidden) closeJournal(); } });
+$("#x-ir").addEventListener("click", () => { EX.tf = null; explorar(); });
+$("#form-aj").addEventListener("submit", async e => {
+  e.preventDefault();
+  const a = { nombre: $("#a-nombre").value.trim() || DEFAULTS.nombre, capital: toNum($("#a-capital").value), riesgoPct: toNum($("#a-riesgo").value), comision: toNum($("#a-com").value) ?? 0,
+    limiteDiario: toNum($("#a-lim").value) ?? 0, maxTrades: toNum($("#a-max").value) ?? 0, tz: $("#a-tz").value === "local" ? "local" : "ET", inicio: $("#a-inicio").value || "" };
+  const errs = [];
+  if (!isNum(a.capital) || a.capital <= 0) errs.push("El capital inicial debe ser mayor que 0.");
+  if (!isNum(a.riesgoPct) || a.riesgoPct <= 0 || a.riesgoPct > 100) errs.push("El riesgo por trade debe estar entre 0 y 100 %.");
+  if (a.comision < 0 || a.limiteDiario < 0 || a.maxTrades < 0) errs.push("Comisión, límite y máximo no pueden ser negativos.");
+  $("#aj-err").textContent = errs.join(" "); if (errs.length) return;
+  try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); await saveAjustes(a); DET.tradeId = null; destroyChart(EX.chart); EX.chart = null; renderAll(); toast("Ajustes guardados."); } catch (err) { $("#aj-err").textContent = storeErr(err); }
+});
+$("#ex-json").addEventListener("click", () => offerFile(`bitacora-mnq-${todayIn(ET)}.json`, JSON.stringify({ version: 1, exportado: new Date().toISOString(), ajustes: S.ajustes, trades: ordenar(S.trades), diario: S.journal }, null, 2)));
+$("#ex-csv").addEventListener("click", () => offerFile(`trades-mnq-${todayIn(ET)}.csv`, exportCsv()));
+$("#im-json").addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f) importJson(f); e.target.value = ""; });
+$("#dump-copy").addEventListener("click", () => { const txt = $("#dump").textContent; navigator.clipboard.writeText(txt).then(() => toast("Copiado.")).catch(() => { const r = document.createRange(); r.selectNodeContents($("#dump")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selecciona y copia con Ctrl+C."); }); });
+$("#del-all").addEventListener("click", () => { $("#del-confirm").hidden = false; });
+$("#del-no").addEventListener("click", () => { $("#del-confirm").hidden = true; });
+$("#del-yes").addEventListener("click", async () => {
+  $("#del-confirm").hidden = true; let n = 0;
+  try { for (const t of [...S.trades]) { await deleteTrade(t.id); n++; } toast(`Borrados ${n} trades.`); } catch (err) { toast(storeErr(err)); }
+});
+// tema
+try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => setTimeout(retheme, 30)); } catch (e) { }
+new MutationObserver(() => setTimeout(retheme, 30)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+
+// tema manual (sistema → claro → oscuro)
+(function () {
+  const K = "bitacora_mnq_tema", ORDEN = ["sistema", "claro", "oscuro"];
+  const get = () => { try { const v = localStorage.getItem(K); return ORDEN.includes(v) ? v : "sistema"; } catch (e) { return "sistema"; } };
+  const apply = v => {
+    const r = document.documentElement;
+    if (v === "claro") r.setAttribute("data-theme", "light"); else if (v === "oscuro") r.setAttribute("data-theme", "dark"); else r.removeAttribute("data-theme");
+    $("#btn-theme").textContent = "Tema: " + v;
+  };
+  apply(get());
+  $("#btn-theme").addEventListener("click", () => { const n = ORDEN[(ORDEN.indexOf(get()) + 1) % 3]; try { localStorage.setItem(K, n); } catch (e) { } apply(n); });
+})();
+// arranque
+renderAll();
+initStore();
+})();
+</script>
+</body>
+</html>
