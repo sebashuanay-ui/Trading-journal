@@ -1,23 +1,22 @@
 name: Precio en vivo
 
 on:
-  schedule:
-    # Cada 5 minutos, de domingo a viernes. El script no hace nada si el mercado está cerrado.
-    - cron: "*/5 * * * 0-5"
+  # Disparo principal: un cron externo (cron-job.org) llama a la API de GitHub cada 5 minutos.
   workflow_dispatch:
+  # Respaldo: si el cron externo falla, el programador de GitHub lo cubre cada 15 minutos (puede retrasarse).
+  schedule:
+    - cron: "*/15 * * * 0-5"
 
 permissions:
   contents: write
 
-# Cada ejecución nueva reemplaza a la anterior: el precio siempre lo publica la más reciente.
-concurrency:
-  group: live
-  cancel-in-progress: true
-
+# Sin "concurrency": cada ejecución dura 6 minutos y el cron externo lanza una cada 5,
+# así que se solapan un minuto y el precio nunca se queda sin publicar.
+# Si dos publican a la vez, gana la última (ambas traen datos frescos de Yahoo).
 jobs:
   live:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,4 +26,4 @@ jobs:
           cache-dependency-path: requirements.txt
       - run: pip install -r requirements.txt
       - name: Publicar el precio cada minuto en la rama live
-        run: python scripts/live_loop.py 330 60
+        run: python scripts/live_loop.py 360 60

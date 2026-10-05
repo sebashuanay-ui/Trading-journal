@@ -9,7 +9,7 @@ Diario de trading para Micro E-mini Nasdaq-100 (MNQ). Registras tus trades cerra
 - **Precios**: la carpeta `data/` guarda velas de MNQ (contrato continuo `MNQ=F` de Yahoo Finance): 1 minuto, 5 minutos y 1 hora.
 - **Workflows** (`.github/workflows/`):
   - `deploy.yml`: cada 5 minutos en horario de mercado descarga el precio actual y vuelve a publicar el sitio. No hace commits. GitHub puede retrasar las tareas programadas unos minutos, así que el precio llega con 5 a 15 minutos de retraso.
-  - `live.yml`: cada 5 minutos arranca un trabajo que, durante ~5 minutos, descarga el precio cada minuto y lo publica en la rama `live` (un único commit reescrito). La página lo lee desde `raw.githubusercontent.com`. Si el mercado está cerrado no hace nada.
+  - `live.yml`: un trabajo de 6 minutos que descarga el precio cada minuto y lo publica en la rama `live` (un único commit reescrito). La página lo lee por la API de GitHub. Si el mercado está cerrado no hace nada. Lo dispara un **cron externo** (cron-job.org) cada 5 minutos llamando a la API de GitHub, con el programador de GitHub como respaldo cada 15 minutos. Ver *Cron externo* abajo.
   - `archive.yml`: cada día hábil después del cierre guarda las últimas sesiones en `data/` (un commit al día).
 
 ## Activar GitHub Pages (una sola vez)
@@ -34,3 +34,21 @@ python scripts/update_data.py  # archiva las últimas sesiones en data/
 - El contrato continuo cambia de vencimiento cada trimestre; puede haber diferencias de unos ticks con tu plataforma.
 - Las horas de mercado del cron están pensadas para horario de verano de Nueva York; en invierno cubre 07:00–17:59 ET.
 - No hay sincronización entre dispositivos: cada navegador guarda sus propios datos.
+
+## Cron externo (disparo puntual del precio en vivo)
+
+El programador (`schedule`) de GitHub Actions es de mejor esfuerzo y a veces se retrasa. Para que el precio se publique puntualmente, un servicio gratuito como [cron-job.org](https://cron-job.org) llama cada 5 minutos a la API de GitHub.
+
+1. **Crea un token** en GitHub: *Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token*.
+   - Repository access: **Only select repositories → Trading-journal**.
+   - Repository permissions: **Actions → Read and write** (Metadata queda en solo lectura).
+   - Elige la expiración más larga y copia el token (empieza con `github_pat_`). Guárdalo solo en el servicio de cron; nunca en el repo ni en un chat.
+2. **Crea la tarea en cron-job.org** (*Create cronjob*):
+   - URL: `https://api.github.com/repos/sebashuanay-ui/Trading-journal/actions/workflows/live.yml/dispatches`
+   - Zona horaria: UTC. Horario: cada 5 minutos, de domingo a viernes.
+   - *Advanced* → Request method: **POST**. Request body: `{"ref":"main"}`
+   - Headers: `Authorization: Bearer TU_TOKEN`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   - Activa las notificaciones de fallo. La respuesta correcta es **204**.
+3. En *Actions → Precio en vivo* deberían aparecer ejecuciones con el evento `workflow_dispatch` cada 5 minutos.
+
+Si el token vence o se revoca, la tarea empieza a recibir 401: renuévalo. Mientras tanto el respaldo de GitHub sigue publicando cada 15 minutos.
