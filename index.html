@@ -23,16 +23,20 @@ img { max-width: 100% }
   --f-ui: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
   --f-disp: "Instrument Serif", Georgia, "Times New Roman", serif;
   --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --s-asia: #4f63c9; --s-lon: #a8680c; --s-ny: #0d6b62; --s-off: #6b7a73;
+  --s-asia-rgb: 79,99,201; --s-lon-rgb: 168,104,12; --s-ny-rgb: 13,107,98;
   --r: 10px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0e1412; --surface: #151d1a; --surface-2: #1c2622; --line: #2a3632; --fg: #e4ebe7; --muted: #94a59d;
   --accent: #45b8aa; --accent-soft: #173a35; --pos: #3fbe78; --neg: #e86a54; --warn: #e3a440;
-  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16); color-scheme: dark } }
+  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16);
+  --s-asia: #8c9cf2; --s-lon: #e3a440; --s-ny: #45b8aa; --s-off: #8a9a92; --s-asia-rgb: 140,156,242; --s-lon-rgb: 227,164,64; --s-ny-rgb: 69,184,170; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #0e1412; --surface: #151d1a; --surface-2: #1c2622; --line: #2a3632; --fg: #e4ebe7; --muted: #94a59d;
   --accent: #45b8aa; --accent-soft: #173a35; --pos: #3fbe78; --neg: #e86a54; --warn: #e3a440;
-  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16); color-scheme: dark }
+  --pos-soft: rgba(63,190,120,.16); --neg-soft: rgba(232,106,84,.16);
+  --s-asia: #8c9cf2; --s-lon: #e3a440; --s-ny: #45b8aa; --s-off: #8a9a92; --s-asia-rgb: 140,156,242; --s-lon-rgb: 227,164,64; --s-ny-rgb: 69,184,170; color-scheme: dark }
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 14px; line-height: 1.45 }
 .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 48px; display: grid; gap: 16px }
@@ -155,6 +159,12 @@ textarea { resize: vertical; min-height: 64px }
 .settings label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted) }
 .help { font-size: 12px; color: var(--muted); font-weight: 400 }
 pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padding: 8px; border-radius: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-all }
+/* sesiones */
+.sbadge { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 12%, var(--surface)) }
+.sbadge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+.sb-asia { --c: var(--s-asia) } .sb-lon { --c: var(--s-lon) } .sb-ny { --c: var(--s-ny) } .sb-off { --c: var(--s-off) }
+.ses-badge { position: absolute; right: 74px; top: 6px; z-index: 3; pointer-events: none; display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); background: var(--surface); padding: 2px 4px; border-radius: 999px }
+.ses-key { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; color: var(--muted) }
 /* en vivo */
 .live-head { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px }
 .live-px { font-size: clamp(34px, 7vw, 52px); line-height: 1.05; font-weight: 500 }
@@ -257,11 +267,30 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
       </div>
       <div class="inline-btns" style="align-items:center;margin-bottom:8px">
         <div class="seg" id="lv-tf"><button type="button" data-tf="1" aria-pressed="true">1m</button><button type="button" data-tf="5" aria-pressed="false">5m</button><button type="button" data-tf="15" aria-pressed="false">15m</button></div>
+        <span id="lv-ses"></span>
         <span class="state" id="lv-state">—</span>
         <span class="muted" id="lv-age" style="font-size:12.5px"></span>
       </div>
       <div class="chart tall" id="lv-chart"></div>
       <p class="help" id="lv-note" style="margin-top:8px"></p>
+    </div>
+    <div class="panel" id="tv-panel">
+      <div class="panel-h">
+        <h2>Gráfico en tiempo real (TradingView)</h2>
+        <div class="filters">
+          <label>Instrumento
+            <select id="tv-sym">
+              <option value="OANDA:NAS100USD">Nasdaq 100 CFD · OANDA (tiempo real)</option>
+              <option value="CAPITALCOM:US100">Nasdaq 100 CFD · Capital.com (tiempo real)</option>
+              <option value="PEPPERSTONE:NAS100">Nasdaq 100 CFD · Pepperstone (tiempo real)</option>
+              <option value="CME_MINI:MNQ1!">MNQ futuro · CME (retrasado 10 min)</option>
+            </select>
+          </label>
+          <button type="button" id="tv-load">Cargar gráfico</button>
+        </div>
+      </div>
+      <p class="help" style="margin-bottom:8px">El CFD del Nasdaq 100 sigue al futuro con una diferencia de pocos puntos y sí llega en tiempo real. Es solo para mirar: aquí no se dibujan tus trades ni se calculan métricas. El precio de arriba (MNQ real) llega con retraso del CME.</p>
+      <div class="chart tall" id="tv-box"><div class="chart-empty">Pulsa «Cargar gráfico» para abrir el gráfico en tiempo real de TradingView.</div></div>
     </div>
     <div class="panel">
       <div class="panel-h"><h2>Tus trades de hoy</h2></div>
@@ -277,6 +306,7 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
       </label>
       <label id="f-dia-w" hidden>Día <input type="date" id="f-dia"></label>
       <label>Dirección <select id="f-dir"><option value="">Ambas</option><option value="1">Largos</option><option value="-1">Cortos</option></select></label>
+      <label>Sesión <select id="f-ses"><option value="">Todas</option><option value="asia">Asia</option><option value="lon">Londres</option><option value="ny">Nueva York</option></select></label>
       <label>Setup <select id="f-setup"><option value="">Todos</option></select></label>
       <label>Resultado <select id="f-res"><option value="">Todos</option><option value="w">Ganadores</option><option value="l">Perdedores</option><option value="be">Empates</option></select></label>
       <span class="muted" id="f-count" style="font-size:12px;margin-left:auto"></span>
@@ -362,6 +392,11 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
       </div>
       <p class="help" id="backup-msg"></p>
       <p class="help" id="im-msg"></p>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>Sesiones</h2></div>
+      <div class="ses-key"><span class="sbadge sb-asia">Asia</span> 18:00–02:59 ET <span class="sbadge sb-lon">Londres</span> 03:00–08:29 ET <span class="sbadge sb-ny">Nueva York</span> 08:30–16:59 ET <span class="sbadge sb-off">Pausa</span> 17:00–17:59 ET</div>
+      <p class="help" style="margin-top:6px">La sesión de cada trade se calcula con la hora de entrada, en horario de Nueva York (cambia solo con el horario de verano). Los gráficos sombrean cada sesión con su color.</p>
     </div>
     <div class="panel">
       <div class="panel-h"><h2>Datos de precio</h2></div>
@@ -505,6 +540,24 @@ function sessionOf(epoch) {
   return d;
 }
 const fmtTime = (epoch, tz) => hm(partsIn(tz, epoch * 1000));
+// Sesiones en hora de Nueva York (ET). Asia 18:00–02:59, Londres 03:00–08:29, Nueva York 08:30–16:59, pausa 17:00–17:59.
+const SES = { asia: { k: "asia", n: "Asia" }, lon: { k: "lon", n: "Londres" }, ny: { k: "ny", n: "Nueva York" }, off: { k: "off", n: "Pausa" } };
+function sesionDe(epoch) {
+  const p = partsIn(ET, epoch * 1000), m = p.h * 60 + p.mi;
+  if (m >= 18 * 60 || m < 3 * 60) return SES.asia;
+  if (m < 8 * 60 + 30) return SES.lon;
+  if (m < 17 * 60) return SES.ny;
+  return SES.off;
+}
+function sbadge(epoch) { if (!isNum(epoch)) return ""; const s = sesionDe(epoch); return `<span class="sbadge sb-${s.k}">${s.n}</span>`; }
+function sesAhora(ms) {
+  if (!mercadoAbierto(ms)) return { html: '<span class="sbadge sb-off">Mercado cerrado</span>', resto: null, s: null };
+  const s = sesionDe(ms / 1000), p = partsIn(ET, ms), m = p.h * 60 + p.mi + p.s / 60;
+  const lim = [3 * 60, 8 * 60 + 30, 17 * 60, 18 * 60, 24 * 60 + 3 * 60];
+  const resto = lim.find(x => x > m) - m;
+  const h = Math.floor(resto / 60), mi = Math.round(resto % 60);
+  return { html: `<span class="sbadge sb-${s.k}">${s.n}</span>`, resto: (h ? h + " h " : "") + mi + " min", s };
+}
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 3600); }
@@ -555,11 +608,18 @@ async function fetchJson(path, fresh) {
     return await r.json();
   } catch (e) { return null; }
 }
-async function pollLive() {
-  const d = await fetchJson("live.json", true);
-  if (d) { S.live = d; } renderLive(true);
+const RAW_LIVE = "https://raw.githubusercontent.com/sebashuanay-ui/Trading-journal/live/live.json";
+async function fetchRawLive() {
+  try { const r = await fetch(RAW_LIVE + "?t=" + Date.now(), { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; }
 }
-function subscribeLive() { pollLive(); setInterval(pollLive, 60000); }
+async function pollLive() {
+  const [a, b] = await Promise.all([fetchRawLive(), fetchJson("live.json", true)]);
+  const f = d => (d && isNum(d.t)) ? d.t : -1;
+  const d = f(a) >= f(b) ? a : b;
+  if (d) S.live = d;
+  renderLive(true);
+}
+function subscribeLive() { pollLive(); setInterval(pollLive, 30000); }
 async function loadIndice() {
   S.indice = await fetchJson("index.json", true);
   renderChipData(); renderCobertura();
@@ -708,6 +768,39 @@ function newChart(el) {
   CHARTS.add(o); return o;
 }
 function candleColors() { const p = css("--pos"), n = css("--neg"); return { upColor: p, downColor: n, wickUpColor: p, wickDownColor: n, borderVisible: false }; }
+function bandColor(k) { return k === "off" ? "rgba(0,0,0,0)" : `rgba(${css("--s-" + k + "-rgb")},0.12)`; }
+const NBANDS = 16; // segmentos de sesión que un gráfico puede mostrar a la vez
+function ensureBands(o) {
+  if (o.bands) return;
+  o.bands = [];
+  for (let i = 0; i < NBANDS; i++) {
+    const sr = o.c.addAreaSeries({ priceScaleId: "bandas", priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, lineVisible: false, lineWidth: 1, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }) });
+    o.bands.push(sr);
+  }
+  o.c.priceScale("bandas").applyOptions({ scaleMargins: { top: 0, bottom: 0 }, visible: false, borderVisible: false });
+}
+function paintBands(o) {
+  if (!o.bands || !o.bandSegs) return;
+  o.bands.forEach((sr, i) => {
+    const sg = o.bandSegs[i];
+    if (!sg) { sr.setData([]); return; }
+    const c = bandColor(sg.k);
+    sr.applyOptions({ topColor: c, bottomColor: c, lineColor: c });
+    sr.setData(sg.pts);
+  });
+}
+function setBands(o, bars, sh) {
+  ensureBands(o);
+  const segs = [];
+  for (let i = 0; i < bars.length; i++) {
+    const k = sesionDe(bars[i].t).k, t = sh(bars[i].t);
+    let sg = segs[segs.length - 1];
+    if (!sg || sg.k !== k) { sg = { k, pts: [] }; if (segs.length) segs[segs.length - 1].pts.push({ time: t, value: 1 }); segs.push(sg); }
+    sg.pts.push({ time: t, value: 1 });
+  }
+  o.bandSegs = segs.slice(-NBANDS);
+  paintBands(o);
+}
 function retheme() {
   for (const o of CHARTS) {
     try {
@@ -715,6 +808,7 @@ function retheme() {
       if (o.kind === "velas" && o.series) o.series.applyOptions(candleColors());
       if (o.kind === "equity" && o.series) o.series.applyOptions(eqColors());
       if (o.relevels) o.relevels();
+      paintBands(o);
     } catch (e) { /* gráfico destruido */ }
   }
 }
@@ -739,9 +833,10 @@ async function drawTrade(holder, t, opts = {}) {
   holder.seg.innerHTML = opciones.map(x => `<button type="button" data-tf="${x}" aria-pressed="${x === holder.tf}">${x < 60 ? x + "m" : "1h"}</button>`).join("");
   holder.seg.onclick = e => { const b = e.target.closest("button[data-tf]"); if (!b) return; holder.tf = +b.dataset.tf; drawTrade(holder, t, opts); };
   const bars = aggregate(data.bars, data.tf, holder.tf);
-  if (!holder.chart || !holder.chart.c || holder.chart.kind !== "velas") { destroyChart(holder.chart); holder.chart = newChart(holder.el); if (!holder.chart) return data; holder.chart.kind = "velas"; holder.chart.series = holder.chart.c.addCandlestickSeries(candleColors()); addLegend(holder.chart, tz); }
+  if (!holder.chart || !holder.chart.c || holder.chart.kind !== "velas") { destroyChart(holder.chart); holder.chart = newChart(holder.el); if (!holder.chart) return data; holder.chart.kind = "velas"; ensureBands(holder.chart); holder.chart.series = holder.chart.c.addCandlestickSeries(candleColors()); addLegend(holder.chart, tz); }
   const ch = holder.chart;
   ch.series.setData(bars.map(b => ({ time: sh(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
+  setBands(ch, bars, sh);
   const levels = () => {
     ch.lines.forEach(l => { try { ch.series.removePriceLine(l); } catch (e) { } }); ch.lines = [];
     const L = [["Entrada", t.entrada, css("--accent"), 0], ["SL", t.sl, css("--neg"), 2], ["TP", t.tp, css("--pos"), 2], ["Salida", t.salida, css("--fg"), 1]];
@@ -887,14 +982,14 @@ function renderCal(all) {
 function rowHtml(r, demo) {
   const t = r.t, d = r.d, tz = tzName(S.ajustes.tz);
   return `<tr data-id="${esc(t.id)}" class="${S.sel === t.id ? "sel" : ""}">
-    <td class="l">${esc(t.fecha)}${demo ? ' <span class="tag ej">ejemplo</span>' : ""}</td><td class="num">${isNum(t.te) ? fmtTime(t.te, tz) : esc(t.he)}</td>
+    <td class="l">${esc(t.fecha)}${demo ? ' <span class="tag ej">ejemplo</span>' : ""}</td><td class="num">${isNum(t.te) ? fmtTime(t.te, tz) : esc(t.he)}</td><td class="l">${sbadge(t.te)}</td>
     <td class="l"><span class="tag ${t.dir > 0 ? "long" : "short"}">${t.dir > 0 ? "Largo" : "Corto"}</span></td>
     <td class="num">${t.ctr}</td><td class="num">${px(t.entrada)}</td><td class="num">${px(t.sl)}</td><td class="num">${px(t.tp)}</td><td class="num">${px(t.salida)}</td>
     <td class="num ${cls(d.pts)}">${isNum(d.pts) ? (d.pts > 0 ? "+" : "") + d.pts.toFixed(2) : "—"}</td>
     <td class="num ${cls(d.neto)}">${money(d.neto)}</td><td class="num ${cls(d.R)}">${rr(d.R)}</td>
     <td class="l">${esc(t.setup || "")}</td><td class="l">${t.reglas ? "Sí" : "No"}</td></tr>`;
 }
-const HEAD = `<thead><tr><th class="l">Fecha</th><th>Hora</th><th class="l">Dir.</th><th>Ctr.</th><th>Entrada</th><th>SL</th><th>TP</th><th>Salida</th><th>Pts</th><th>PnL neto</th><th>R</th><th class="l">Setup</th><th class="l">Plan</th></tr></thead>`;
+const HEAD = `<thead><tr><th class="l">Fecha</th><th>Hora</th><th class="l">Sesión</th><th class="l">Dir.</th><th>Ctr.</th><th>Entrada</th><th>SL</th><th>TP</th><th>Salida</th><th>Pts</th><th>PnL neto</th><th>R</th><th class="l">Setup</th><th class="l">Plan</th></tr></thead>`;
 function renderRecent(all) {
   const rows = [...all.rows].reverse().slice(0, 8);
   $("#tbl-recent").innerHTML = rows.length ? HEAD + "<tbody>" + rows.map(r => rowHtml(r, S.usandoDemo)).join("") + "</tbody>" : `<tbody><tr><td class="empty" style="text-align:center">Todavía no hay trades.</td></tr></tbody>`;
@@ -908,7 +1003,7 @@ function renderSetups() {
   $("#setups").innerHTML = [...new Set(S.trades.map(t => t.setup).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join("");
 }
 function filtered(all) {
-  const per = $("#f-per").value, dir = $("#f-dir").value, st = $("#f-setup").value, res = $("#f-res").value;
+  const per = $("#f-per").value, ses = $("#f-ses").value, dir = $("#f-dir").value, st = $("#f-setup").value, res = $("#f-res").value;
   const hoy = todayIn(tzName(S.ajustes.tz)), sem = weekStart(hoy);
   return all.rows.filter(r => {
     const f = r.t.fecha;
@@ -917,6 +1012,7 @@ function filtered(all) {
     if (per === "mes" && f.slice(0, 7) !== hoy.slice(0, 7)) return false;
     if (per === "dia" && f !== $("#f-dia").value) return false;
     if (dir && String(r.t.dir) !== dir) return false;
+    if (ses && (!isNum(r.t.te) || sesionDe(r.t.te).k !== ses)) return false;
     if (st && r.t.setup !== st) return false;
     if (res === "w" && !(r.d.neto > 0)) return false;
     if (res === "l" && !(r.d.neto < 0)) return false;
@@ -962,7 +1058,7 @@ function renderDetail(all) {
     </div>`;
   if (!same) {
     destroyChart(DET.chart); DET.chart = null; DET.tf = null; DET.lastVer = null;
-    box.innerHTML = `<div class="panel-h"><h2>${esc(t.fecha)} · ${t.dir > 0 ? "Largo" : "Corto"} ${t.ctr} MNQ · ${isNum(t.te) ? fmtTime(t.te, tz) : ""}${isNum(t.ts) ? "–" + fmtTime(t.ts, tz) : ""}${t.setup ? " · " + esc(t.setup) : ""}</h2><div class="inline-btns" style="align-items:center"><div class="seg" id="det-tf"></div></div></div>
+    box.innerHTML = `<div class="panel-h"><h2>${esc(t.fecha)} · ${t.dir > 0 ? "Largo" : "Corto"} ${t.ctr} MNQ · ${isNum(t.te) ? fmtTime(t.te, tz) : ""}${isNum(t.ts) ? "–" + fmtTime(t.ts, tz) : ""}${t.setup ? " · " + esc(t.setup) : ""} ${sbadge(t.te)}</h2><div class="inline-btns" style="align-items:center"><div class="seg" id="det-tf"></div></div></div>
       <div class="detail"><div style="display:grid;gap:6px;min-width:0"><div class="chart tall" id="det-chart"></div><span class="muted" id="det-info" style="font-size:12px"></span></div><div id="det-right"></div></div>`;
     DET.el = $("#det-chart"); DET.info = $("#det-info"); DET.seg = $("#det-tf"); DET.tradeId = t.id;
     $("#det-right").innerHTML = right;
@@ -1011,6 +1107,7 @@ function renderAnalisis() {
   const wd = groupBy(rows, r => dow(r.t.fecha)).sort((a, b) => a.k - b.k).map(x => ({ ...x, k: DIAS[x.k] }));
   const hr = groupBy(rows, r => isNum(r.t.te) ? partsIn(tz, r.t.te * 1000).h : null).sort((a, b) => a.k - b.k).map(x => ({ ...x, k: pad(x.k) + ":00" }));
   const st = groupBy(rows, r => r.t.setup || "Sin setup").sort((a, b) => b.v - a.v);
+  const ses = groupBy(rows, r => isNum(r.t.te) ? sesionDe(r.t.te).n : null).sort((a, b) => b.v - a.v);
   const dir = groupBy(rows, r => r.t.dir > 0 ? "Largos" : "Cortos");
   const plan = groupBy(rows, r => r.t.reglas ? "Respeté el plan" : "No respeté el plan");
   const emo = groupBy(rows, r => r.t.emo || null).sort((a, b) => b.v - a.v);
@@ -1024,6 +1121,7 @@ function renderAnalisis() {
   $("#ana").innerHTML = [
     card("Por día de la semana", "PnL neto · trades", barList(wd)),
     card("Por hora de entrada", S.ajustes.tz === "local" ? "tu hora local" : "hora ET", barList(hr)),
+    card("Por sesión", wrList(ses), barList(ses)),
     card("Por setup", wrList(st.slice(0, 3)), barList(st)),
     card("Largos vs cortos", wrList(dir), barList(dir)),
     card("Disciplina", "¿cuánto cuesta saltarse el plan?", barList(plan)),
@@ -1092,6 +1190,7 @@ function formChanged(inmediato = false) {
   // calculadora
   const cap = capitalAntes(f), riesgoObj = cap * (Number(S.ajustes.riesgoPct) || 0) / 100;
   const rows = [];
+  if (isNum(f.te)) rows.push(["Sesión de la entrada", sbadge(f.te)]);
   if (isNum(f.entrada) && isNum(f.sl) && f.sl !== f.entrada) {
     const rp = Math.abs(f.entrada - f.sl), r1 = rp * PV, sug = Math.floor(riesgoObj / r1);
     rows.push(["Riesgo por contrato", `${rp.toFixed(2)} pts = ${money(r1, false)}`]);
@@ -1260,6 +1359,9 @@ function renderLiveAge() {
     chip.className = "chip " + (st.k === "on" ? "ok" : st.k === "late" ? "bad" : "");
     chip.lastElementChild.textContent = `MNQ ${px(L.last)}${ch != null ? " · " + (ch >= 0 ? "+" : "−") + Math.abs(ch).toFixed(2) : ""} · ${st.age != null ? haceTxt(st.age) : ""}`;
   }
+  const sa = sesAhora(Date.now()), txt = sa.resto ? `${sa.html} <span>termina en ${sa.resto}</span>` : sa.html;
+  const lvs = $("#lv-ses"); if (lvs) lvs.innerHTML = txt;
+  if (LV.chart && LV.chart.badge) LV.chart.badge.innerHTML = txt;
   const e = $("#lv-state"); if (e) { e.className = "state " + st.k; e.textContent = st.est; }
   const a = $("#lv-age"); if (a) a.textContent = L && st.age != null ? "Último dato " + haceTxt(st.age) + " · " + fmtTime(L.t, tzName(S.ajustes.tz)) + (S.ajustes.tz === "local" ? "" : " ET") : "";
 }
@@ -1277,17 +1379,20 @@ function renderLive(full) {
   const c = $("#lv-chg"); c.className = "num " + cls(ch); c.textContent = ch != null ? `${ch >= 0 ? "+" : "−"}${Math.abs(ch).toFixed(2)} pts · ${pct(chp, 2)} vs. cierre previo` : "";
   const rng = isNum(L.hi) && isNum(L.lo) ? L.hi - L.lo : null;
   $("#lv-stats").innerHTML = [["Máximo", px(L.hi)], ["Mínimo", px(L.lo)], ["Rango", rng != null ? rng.toFixed(2) + " pts" : "—"], ["Cierre previo", px(L.prev)], ["1 punto = ", "$2 por contrato"]].map(([k, v]) => `<div><span class="lbl">${k}</span><b>${v}</b></div>`).join("");
-  $("#lv-note").textContent = `Sesión ${L.ses || ""} · ${L.fuente || "Yahoo Finance MNQ=F"} · el precio se actualiza cuando el servidor recibe datos nuevos, no tick a tick; puede tener unos minutos de retraso respecto a tu bróker.`;
+  const dl = isNum(L.actualizado) ? (L.actualizado - L.t) / 60 : null;
+  $("#lv-note").textContent = `Sesión ${L.ses || ""} · ${L.fuente || "Yahoo Finance MNQ=F"}${dl != null ? ` · la última vela tenía ${Math.round(dl)} min de antigüedad cuando se descargó` : ""}. Yahoo publica los futuros del CME con unos 10 minutos de retraso: refrescar más seguido no acerca el precio al real. Para tiempo real usa el gráfico de TradingView de abajo.`;
   const tz = tzName(S.ajustes.tz), sh = shiftFor(tz);
   const bars = aggregate(liveBars(), 1, LV.tf);
   if (!bars.length) return;
   const key = L.ses + "|" + S.ajustes.tz;
   if (!LV.chart || LV.key !== key) {
     destroyChart(LV.chart); LV.chart = newChart(el); if (!LV.chart) return;
-    LV.key = key; LV.centrado = false; LV.chart.kind = "velas"; LV.chart.series = LV.chart.c.addCandlestickSeries(candleColors()); addLegend(LV.chart, tz);
+    LV.key = key; LV.centrado = false; LV.chart.kind = "velas"; ensureBands(LV.chart); LV.chart.series = LV.chart.c.addCandlestickSeries(candleColors()); addLegend(LV.chart, tz);
+    const sb = document.createElement("div"); sb.className = "ses-badge"; el.appendChild(sb); LV.chart.badge = sb; renderLiveAge();
   }
   const ch2 = LV.chart;
   ch2.series.setData(bars.map(b => ({ time: sh(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
+  setBands(ch2, bars, sh);
   const levels = () => {
     ch2.lines.forEach(l => { try { ch2.series.removePriceLine(l); } catch (e) { } }); ch2.lines = [];
     if (isNum(L.prev)) ch2.lines.push(ch2.series.createPriceLine({ price: L.prev, color: css("--muted"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Cierre previo" }));
@@ -1370,7 +1475,7 @@ function setTab(k) {
   S.tab = k;
   $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
   ["panel", "vivo", "trades", "diario", "analisis", "grafico", "ajustes"].forEach(x => { $("#v-" + x).hidden = x !== k; });
-  if (k === "vivo") renderLive(true);
+  if (k === "vivo") { renderLive(true); if (window.__tvAutoLoad) window.__tvAutoLoad(); }
   if (k === "diario") renderDiario();
   if (k === "analisis") renderAnalisis();
   if (k === "trades") renderTrades();
@@ -1429,7 +1534,7 @@ $("#go-trades").addEventListener("click", () => setTab("trades"));
 $("#cal-prev").addEventListener("click", () => { const [y, m] = S.calMes.split("-").map(Number); const d = new Date(Date.UTC(y, m - 2, 1)); S.calMes = d.toISOString().slice(0, 7); renderPanel(); });
 $("#cal-next").addEventListener("click", () => { const [y, m] = S.calMes.split("-").map(Number); const d = new Date(Date.UTC(y, m, 1)); S.calMes = d.toISOString().slice(0, 7); renderPanel(); });
 $("#cal-hoy").addEventListener("click", () => { S.calMes = todayIn(tzName(S.ajustes.tz)).slice(0, 7); renderPanel(); });
-["#f-per", "#f-dir", "#f-setup", "#f-res", "#f-dia"].forEach(id => $(id).addEventListener("change", () => { S.sel = null; renderTrades(); }));
+["#f-per", "#f-dir", "#f-ses", "#f-setup", "#f-res", "#f-dia"].forEach(id => $(id).addEventListener("change", () => { S.sel = null; renderTrades(); }));
 $("#form-t").addEventListener("submit", submitForm);
 $("#form-t").addEventListener("input", e => { if (e.target.id === "t-com") $("#t-com").dataset.auto = ""; formChanged(); });
 $("#form-t").addEventListener("change", () => formChanged());
@@ -1462,6 +1567,25 @@ $("#del-yes").addEventListener("click", async () => {
 try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => setTimeout(retheme, 30)); } catch (e) { }
 new MutationObserver(() => setTimeout(retheme, 30)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
 
+// TradingView (carga bajo demanda)
+(function () {
+  const K = "bitacora_mnq_tv", box = $("#tv-box");
+  const get = () => { try { return JSON.parse(localStorage.getItem(K) || "null"); } catch (e) { return null; } };
+  const dark = () => { const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches; };
+  function load() {
+    const sym = $("#tv-sym").value; try { localStorage.setItem(K, JSON.stringify({ on: true, sym })); } catch (e) { }
+    box.innerHTML = "";
+    const w = document.createElement("div"); w.className = "tradingview-widget-container"; w.style.cssText = "height:100%;width:100%";
+    const inner = document.createElement("div"); inner.className = "tradingview-widget-container__widget"; inner.style.cssText = "height:100%;width:100%"; w.appendChild(inner);
+    const sc = document.createElement("script"); sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"; sc.async = true;
+    sc.text = JSON.stringify({ autosize: true, symbol: sym, interval: "1", timezone: "America/New_York", theme: dark() ? "dark" : "light", style: "1", locale: "es", allow_symbol_change: false, hide_side_toolbar: true, calendar: false, support_host: "https://www.tradingview.com" });
+    w.appendChild(sc); box.appendChild(w);
+  }
+  $("#tv-load").addEventListener("click", load);
+  $("#tv-sym").addEventListener("change", () => { if (get() && get().on) load(); });
+  const g = get(); if (g && g.sym) { $("#tv-sym").value = g.sym; }
+  window.__tvAutoLoad = () => { const x = get(); if (x && x.on && !box.querySelector(".tradingview-widget-container")) load(); };
+})();
 // tema manual (sistema → claro → oscuro)
 (function () {
   const K = "bitacora_mnq_tema", ORDEN = ["sistema", "claro", "oscuro"];
