@@ -629,18 +629,29 @@ async function fetchJson(path, fresh) {
     return await r.json();
   } catch (e) { return null; }
 }
-const RAW_LIVE = "https://raw.githubusercontent.com/sebashuanay-ui/Trading-journal/live/live.json";
+const REPO_LIVE = "sebashuanay-ui/Trading-journal";
+// 1) API de GitHub (sin la caché de 5 min de raw.githubusercontent.com; el navegador revalida con ETag cada 60 s)
+async function fetchApiLive() {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO_LIVE}/contents/live.json?ref=live`);
+    if (!r.ok) return null;
+    const j = await r.json(); if (!j || typeof j.content !== "string") return null;
+    const bin = atob(j.content.replace(/\s/g, "")), u8 = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(u8));
+  } catch (e) { return null; }
+}
+// 2) raw (puede ir hasta 5 min atrasado) 
 async function fetchRawLive() {
-  try { const r = await fetch(RAW_LIVE + "?t=" + Date.now(), { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; }
+  try { const r = await fetch(`https://raw.githubusercontent.com/${REPO_LIVE}/live/live.json?t=${Date.now()}`, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; }
 }
 async function pollLive() {
-  const [a, b] = await Promise.all([fetchRawLive(), fetchJson("live.json", true)]);
+  const [a, c, b] = await Promise.all([fetchApiLive(), fetchRawLive(), fetchJson("live.json", true)]);
   const f = d => (d && isNum(d.t)) ? d.t : -1;
-  const d = f(a) >= f(b) ? a : b;
+  let d = a; for (const x of [c, b]) if (f(x) > f(d)) d = x;
   if (d) S.live = d;
   renderLive(true);
 }
-function subscribeLive() { pollLive(); setInterval(pollLive, 30000); }
+function subscribeLive() { pollLive(); setInterval(pollLive, 60000); }
 async function loadIndice() {
   S.indice = await fetchJson("index.json", true);
   renderChipData(); renderCobertura();
