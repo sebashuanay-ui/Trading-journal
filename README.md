@@ -5,7 +5,7 @@ Diario de trading para Micro E-mini Nasdaq-100 (MNQ). Registras tus trades cerra
 ## Cómo funciona
 
 - `index.html`: la página completa (sin servidor, sin dependencias que instalar).
-- **Tus datos** (trades, diario, ajustes) se guardan **solo en tu navegador** (localStorage). No se suben a GitHub. Usa *Ajustes y datos → Exportar copia* de vez en cuando.
+- **Tus datos** (trades, diario, ajustes y fotos de los trades) se guardan **solo en tu navegador** (localStorage e IndexedDB). Las fotos se comprimen a 1600 px y se pueden pegar con Ctrl+V. No se suben a GitHub. Usa *Ajustes y datos → Exportar copia* de vez en cuando.
 - **Precios**: la carpeta `data/` guarda velas de MNQ (contrato continuo `MNQ=F` de Yahoo Finance): 1 minuto, 5 minutos y 1 hora.
 - **Workflows** (`.github/workflows/`):
   - `deploy.yml`: cada 5 minutos en horario de mercado descarga el precio actual y vuelve a publicar el sitio. No hace commits. GitHub puede retrasar las tareas programadas unos minutos, así que el precio llega con 5 a 15 minutos de retraso.

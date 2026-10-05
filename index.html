@@ -159,6 +159,16 @@ textarea { resize: vertical; min-height: 64px }
 .settings label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted) }
 .help { font-size: 12px; color: var(--muted); font-weight: 400 }
 pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padding: 8px; border-radius: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-all }
+/* fotos */
+.foto-grid { display: flex; flex-wrap: wrap; gap: 8px }
+.foto-item { position: relative; width: 96px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2) }
+.foto-item.big { width: 132px; height: 96px }
+.foto-item img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; display: block }
+.foto-item .x { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; padding: 0; border-radius: 50%; justify-content: center; font-size: 13px; line-height: 1; background: var(--surface) }
+.fotos-drop { border: 1px dashed var(--line); border-radius: 8px; padding: 8px; display: grid; gap: 8px }
+.fotos-drop.over { border-color: var(--accent); background: var(--accent-soft) }
+.lb { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .85); display: grid; place-items: center; padding: 16px; cursor: zoom-out }
+.lb img { max-width: 100%; max-height: 100%; border-radius: 8px; background: var(--surface) }
 /* sesiones */
 .sbadge { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 12%, var(--surface)) }
 .sbadge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
@@ -375,6 +385,7 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
       <div class="inline-btns">
         <button type="button" id="ex-json">Exportar copia (JSON)</button>
         <button type="button" id="ex-csv">Exportar trades (CSV)</button>
+        <label class="help" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="ex-fotos" checked> Incluir fotos en la copia</label>
         <label class="btn" for="im-json" style="cursor:pointer">Importar copia (JSON)</label>
         <input type="file" id="im-json" accept=".json,application/json" hidden>
         <span style="flex:1"></span>
@@ -434,6 +445,15 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
           </label>
           <label class="full" style="display:flex;gap:8px;align-items:center;color:var(--fg);font-weight:500"><input type="checkbox" id="t-reglas"> Respeté mi plan y mis reglas en este trade</label>
           <label class="full">Notas <textarea id="t-notas" maxlength="2000" placeholder="Por qué entré, qué vi, qué haría distinto"></textarea></label>
+          <div class="full fotos-drop" id="t-fotos-w">
+            <span class="lbl">Fotos (opcional)</span>
+            <div class="foto-grid" id="t-fotos"></div>
+            <div class="inline-btns" style="align-items:center">
+              <label class="btn small" for="t-foto-in" style="cursor:pointer">+ Agregar fotos</label>
+              <input type="file" id="t-foto-in" accept="image/*" multiple hidden>
+              <span class="help" id="t-foto-help">Pega una captura con Ctrl+V o arrástrala aquí. Máximo 6 por trade; se comprimen y se guardan en este navegador.</span>
+            </div>
+          </div>
         </div>
         <div class="calc" id="t-calc"></div>
         <p class="err" id="t-err"></p>
@@ -477,6 +497,7 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
     </div>
   </form>
 </div>
+<div class="lb" id="lb" hidden><img id="lb-img" alt="Foto del trade"></div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -590,7 +611,7 @@ function persist() { if (!lsWrite()) throw { code: "local", message: "El navegad
 async function saveTrade(t) { const i = S.trades.findIndex(x => x.id === t.id); if (i >= 0) S.trades[i] = t; else S.trades.push(t); persist(); afterLoad(); }
 async function saveEntry(e) { const i = S.journal.findIndex(x => x.id === e.id); if (i >= 0) S.journal[i] = e; else S.journal.push(e); persist(); afterLoad(); }
 async function deleteEntry(id) { S.journal = S.journal.filter(x => x.id !== id); persist(); afterLoad(); }
-async function deleteTrade(id) { S.trades = S.trades.filter(x => x.id !== id); persist(); afterLoad(); }
+async function deleteTrade(id) { const t = S.trades.find(x => x.id === id); S.trades = S.trades.filter(x => x.id !== id); persist(); afterLoad(); if (t && t.fotos) for (const f of t.fotos) fotoDel(f); }
 async function saveAjustes(a) { S.ajustes = a; persist(); afterLoad(); }
 function storeErr(e) {
   const c = e && e.code;
@@ -1053,6 +1074,7 @@ function renderDetail(all) {
         <dt>Plan respetado</dt><dd>${t.reglas ? "Sí" : "No"}</dd>
       </dl>
       ${t.notas ? `<div class="note">${esc(t.notas)}</div>` : ""}
+      <div class="foto-grid" id="det-fotos"></div>
       <div id="det-verif">${ver}</div>
       <div class="inline-btns" id="det-acts">${demo ? '<span class="help">Trade de ejemplo: no se puede editar.</span>' : `<button type="button" data-act="edit" data-id="${esc(t.id)}">Editar</button><button type="button" data-act="dup" data-id="${esc(t.id)}">Duplicar</button><button type="button" class="danger" data-act="del" data-id="${esc(t.id)}">Borrar</button>`}</div>
     </div>`;
@@ -1070,6 +1092,7 @@ function renderDetail(all) {
   } else {
     $("#det-right").innerHTML = right;
   }
+  renderFotosDetalle(t);
 }
 function verifHtml(t, v, data) {
   if (!v) return "";
@@ -1150,9 +1173,10 @@ function openForm(t, dup = false) {
   $("#t-err").textContent = ""; $("#t-verif").innerHTML = "";
   $("#ov").hidden = false; document.body.style.overflow = "hidden";
   FT.el = $("#t-chart"); FT.info = $("#t-info"); FT.seg = $("#t-tf"); FT.tf = null;
+  cargarFotosForm(t && !dup ? t : null);
   formChanged(true); setTimeout(() => $("#t-fecha").focus(), 30);
 }
-function closeForm() { $("#ov").hidden = true; document.body.style.overflow = ""; destroyChart(FT.chart); FT.chart = null; FT.key = null; }
+function closeForm() { limpiarFotosForm(); $("#ov").hidden = true; document.body.style.overflow = ""; destroyChart(FT.chart); FT.chart = null; FT.key = null; }
 function readForm() {
   const tzK = S.ajustes.tz, tz = tzName(tzK);
   const f = { fecha: $("#t-fecha").value, dir: Number($("#t-dir").value) || 1, he: $("#t-he").value, hs: $("#t-hs").value,
@@ -1233,7 +1257,12 @@ async function submitForm(ev) {
     creado: S.editId ? (S.trades.find(x => x.id === S.editId) || {}).creado || Date.now() : Date.now(), editado: Date.now() };
   // la fecha del diario es la fecha en la zona elegida (coincide con lo escrito)
   $("#ft-save").disabled = true;
-  try { await saveTrade(t); S.sel = t.id; closeForm(); toast(S.editId ? "Trade actualizado." : "Trade guardado."); S.editId = null; }
+  try {
+    for (const f of FP.items) if (f.nueva) await fotoPut(f.id, f.blob);
+    t.fotos = FP.items.map(f => f.id);
+    await saveTrade(t);
+    for (const id of FP.quitadas) fotoDel(id);
+    S.sel = t.id; closeForm(); toast(S.editId ? "Trade actualizado." : "Trade guardado."); S.editId = null; }
   catch (err) { $("#t-err").textContent = storeErr(err); }
   finally { $("#ft-save").disabled = false; }
 }
@@ -1253,6 +1282,90 @@ async function explorar() {
   }
 }
 
+// ───────────── fotos (IndexedDB) ─────────────
+const MAX_FOTOS = 6;
+let _idb = null;
+function idb() {
+  if (_idb) return _idb;
+  _idb = new Promise(res => {
+    try {
+      const r = indexedDB.open("bitacora_mnq", 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore("fotos", { keyPath: "id" }); };
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return _idb;
+}
+async function idbOp(mode, fn) {
+  const db = await idb(); if (!db) throw { code: "local", message: "Este navegador no permite guardar fotos (modo privado o sin espacio)." };
+  return new Promise((res, rej) => {
+    const tx = db.transaction("fotos", mode), st = tx.objectStore("fotos"); let out;
+    try { out = fn(st); } catch (e) { rej(e); return; }
+    tx.oncomplete = () => res(out && "result" in out ? out.result : undefined); tx.onerror = () => rej(tx.error || { code: "local" }); tx.onabort = () => rej(tx.error || { code: "local", message: "No hay espacio para guardar la foto." });
+  });
+}
+const fotoPut = (id, blob) => idbOp("readwrite", st => st.put({ id, blob, tipo: blob.type, creado: Date.now() }));
+const fotoDel = id => { const u = FOTO_URLS.get(id); if (u) { URL.revokeObjectURL(u); FOTO_URLS.delete(id); } return idbOp("readwrite", st => st.delete(id)).catch(() => { }); };
+async function fotoBlob(id) { try { const r = await idbOp("readonly", st => st.get(id)); return r ? r.blob : null; } catch (e) { return null; } }
+const FOTO_URLS = new Map();
+async function fotoUrl(id) {
+  if (FOTO_URLS.has(id)) return FOTO_URLS.get(id);
+  const b = await fotoBlob(id); if (!b) return null;
+  const u = URL.createObjectURL(b); FOTO_URLS.set(id, u); return u;
+}
+async function comprimir(file) {
+  if (!file.type || !file.type.startsWith("image/")) throw new Error("«" + (file.name || "archivo") + "» no es una imagen.");
+  if (file.size > 30 * 1024 * 1024) throw new Error("La imagen pesa más de 30 MB.");
+  let w, h, src;
+  try { src = await createImageBitmap(file); w = src.width; h = src.height; }
+  catch (e) {
+    src = await new Promise((res, rej) => { const i = new Image(), u = URL.createObjectURL(file); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error("No se pudo leer la imagen (formato no compatible).")); }; i.src = u; });
+    w = src.naturalWidth; h = src.naturalHeight;
+  }
+  const k = Math.min(1, 1600 / Math.max(w, h)), c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  return await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("No se pudo comprimir la imagen.")), "image/jpeg", 0.85));
+}
+const FP = { items: [], quitadas: [] };
+function renderFotosForm() {
+  $("#t-fotos").innerHTML = FP.items.map(f => `<div class="foto-item"><img src="${f.url}" alt="Foto del trade"><button type="button" class="x" data-quitar="${esc(f.id)}" aria-label="Quitar foto">×</button></div>`).join("");
+  $("#t-foto-help").textContent = FP.items.length >= MAX_FOTOS ? `Llegaste al máximo de ${MAX_FOTOS} fotos.` : "Pega una captura con Ctrl+V o arrástrala aquí. Máximo 6 por trade; se comprimen y se guardan en este navegador.";
+}
+async function agregarFotos(files) {
+  const lista = Array.from(files || []).filter(f => f && f.type && f.type.startsWith("image/"));
+  if (!lista.length) return;
+  $("#t-err").textContent = "";
+  for (const f of lista) {
+    if (FP.items.length >= MAX_FOTOS) { $("#t-err").textContent = `Máximo ${MAX_FOTOS} fotos por trade.`; break; }
+    try { const b = await comprimir(f); FP.items.push({ id: "f_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), blob: b, url: URL.createObjectURL(b), nueva: true }); }
+    catch (e) { $("#t-err").textContent = e.message || "No se pudo agregar la foto."; }
+  }
+  renderFotosForm();
+}
+async function cargarFotosForm(t) {
+  FP.items = []; FP.quitadas = []; renderFotosForm();
+  for (const id of (t && t.fotos) || []) { const b = await fotoBlob(id); if (b) FP.items.push({ id, blob: b, url: URL.createObjectURL(b), nueva: false }); }
+  renderFotosForm();
+}
+function limpiarFotosForm() { FP.items.forEach(f => { try { URL.revokeObjectURL(f.url); } catch (e) { } }); FP.items = []; FP.quitadas = []; }
+async function renderFotosDetalle(t) {
+  const box = $("#det-fotos"); if (!box) return;
+  const ids = t.fotos || []; if (!ids.length) { box.innerHTML = ""; return; }
+  const us = await Promise.all(ids.map(async id => [id, await fotoUrl(id)]));
+  if (!$("#det-fotos") || S.sel !== t.id) return;
+  box.innerHTML = us.filter(x => x[1]).map(([id, u]) => `<div class="foto-item big"><img src="${u}" alt="Foto del trade"></div>`).join("") || '<span class="help">Las fotos de este trade no están en este navegador.</span>';
+}
+function abrirLb(src) { $("#lb-img").src = src; $("#lb").hidden = false; }
+function cerrarLb() { $("#lb").hidden = true; $("#lb-img").removeAttribute("src"); }
+async function fotosABase64(ids) {
+  const out = {};
+  for (const id of ids) {
+    const b = await fotoBlob(id); if (!b) continue;
+    out[id] = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(b); });
+    if (!out[id]) delete out[id];
+  }
+  return out;
+}
 // ───────────── ajustes, exportar, importar ─────────────
 function fillAjustes() {
   if (document.activeElement && document.activeElement.closest && document.activeElement.closest("#form-aj")) return;
@@ -1307,6 +1420,13 @@ async function importJson(file) {
       const id = /^t_[A-Za-z0-9_-]{3,60}$/.test(String(t.id)) ? t.id : "t_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
       await saveTrade({ ...t, id }); ok++;
     }
+    let nf = 0;
+    if (j.fotos && typeof j.fotos === "object") {
+      for (const [id, d] of Object.entries(j.fotos)) {
+        if (!/^f_[A-Za-z0-9_-]{3,60}$/.test(id) || typeof d !== "string" || !d.startsWith("data:image/")) continue;
+        try { await fotoPut(id, await (await fetch(d)).blob()); nf++; } catch (e) { }
+      }
+    }
     let nj = 0;
     for (const e of (Array.isArray(j.diario) ? j.diario : [])) {
       if (!e || typeof e !== "object" || !e.fecha) continue;
@@ -1314,7 +1434,7 @@ async function importJson(file) {
       await saveEntry({ ...e, id }); nj++;
     }
     if (j.ajustes && typeof j.ajustes === "object") await saveAjustes({ ...DEFAULTS, ...S.ajustes, ...j.ajustes });
-    msg.textContent = `Importados ${ok} trades y ${nj} entradas de diario.`;
+    msg.textContent = `Importados ${ok} trades, ${nj} entradas de diario y ${nf} fotos.`;
   } catch (e) { msg.textContent = "No se pudo importar: " + (e.message || storeErr(e)); }
 }
 
@@ -1488,7 +1608,7 @@ document.addEventListener("click", e => {
     const a = act.dataset.act, id = act.dataset.id, t = S.trades.find(x => x.id === id);
     if (a === "new") openForm(null);
     if (a === "edit" && t) openForm(t);
-    if (a === "dup" && t) openForm({ ...t, te: null, ts: null, he: "", hs: "" }, true);
+    if (a === "dup" && t) openForm({ ...t, te: null, ts: null, he: "", hs: "", fotos: [] }, true);
     if (a === "del" && t) { act.parentElement.innerHTML = `<span>¿Borrar este trade?</span><button type="button" class="danger" data-act="del-yes" data-id="${esc(id)}">Sí, borrar</button><button type="button" data-act="del-no">No</button>`; }
     if (a === "del-no") renderTrades();
     if (a === "del-yes") { deleteTrade(id).then(() => { S.sel = null; toast("Trade borrado."); }).catch(err => toast(storeErr(err))); }
@@ -1540,7 +1660,7 @@ $("#form-t").addEventListener("input", e => { if (e.target.id === "t-com") $("#t
 $("#form-t").addEventListener("change", () => formChanged());
 $("#ft-cancel").addEventListener("click", closeForm);
 $("#ov").addEventListener("click", e => { if (e.target.id === "ov") closeForm(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#ov").hidden) closeForm(); else if (!$("#ov-j").hidden) closeJournal(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#lb").hidden) cerrarLb(); else if (!$("#ov").hidden) closeForm(); else if (!$("#ov-j").hidden) closeJournal(); } });
 $("#x-ir").addEventListener("click", () => { EX.tf = null; explorar(); });
 $("#form-aj").addEventListener("submit", async e => {
   e.preventDefault();
@@ -1553,7 +1673,11 @@ $("#form-aj").addEventListener("submit", async e => {
   $("#aj-err").textContent = errs.join(" "); if (errs.length) return;
   try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); await saveAjustes(a); DET.tradeId = null; destroyChart(EX.chart); EX.chart = null; renderAll(); toast("Ajustes guardados."); } catch (err) { $("#aj-err").textContent = storeErr(err); }
 });
-$("#ex-json").addEventListener("click", () => offerFile(`bitacora-mnq-${todayIn(ET)}.json`, JSON.stringify({ version: 1, exportado: new Date().toISOString(), ajustes: S.ajustes, trades: ordenar(S.trades), diario: S.journal }, null, 2)));
+$("#ex-json").addEventListener("click", async () => {
+  const ids = $("#ex-fotos").checked ? S.trades.flatMap(t => t.fotos || []) : [];
+  const fotos = ids.length ? await fotosABase64(ids) : {};
+  offerFile(`bitacora-mnq-${todayIn(ET)}.json`, JSON.stringify({ version: 2, exportado: new Date().toISOString(), ajustes: S.ajustes, trades: ordenar(S.trades), diario: S.journal, fotos }, null, ids.length ? 0 : 2));
+});
 $("#ex-csv").addEventListener("click", () => offerFile(`trades-mnq-${todayIn(ET)}.csv`, exportCsv()));
 $("#im-json").addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f) importJson(f); e.target.value = ""; });
 $("#dump-copy").addEventListener("click", () => { const txt = $("#dump").textContent; navigator.clipboard.writeText(txt).then(() => toast("Copiado.")).catch(() => { const r = document.createRange(); r.selectNodeContents($("#dump")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selecciona y copia con Ctrl+C."); }); });
@@ -1561,8 +1685,22 @@ $("#del-all").addEventListener("click", () => { $("#del-confirm").hidden = false
 $("#del-no").addEventListener("click", () => { $("#del-confirm").hidden = true; });
 $("#del-yes").addEventListener("click", async () => {
   $("#del-confirm").hidden = true; let n = 0;
-  try { for (const t of [...S.trades]) { await deleteTrade(t.id); n++; } toast(`Borrados ${n} trades.`); } catch (err) { toast(storeErr(err)); }
+  try { for (const t of [...S.trades]) { await deleteTrade(t.id); n++; } toast(`Borrados ${n} trades y sus fotos.`); } catch (err) { toast(storeErr(err)); }
 });
+// fotos: eventos
+$("#t-foto-in").addEventListener("change", e => { agregarFotos(e.target.files); e.target.value = ""; });
+$("#t-fotos").addEventListener("click", e => {
+  const q = e.target.closest("[data-quitar]");
+  if (q) { const i = FP.items.findIndex(f => f.id === q.dataset.quitar); if (i >= 0) { const f = FP.items.splice(i, 1)[0]; if (!f.nueva) FP.quitadas.push(f.id); try { URL.revokeObjectURL(f.url); } catch (x) { } renderFotosForm(); } return; }
+  const im = e.target.closest("img"); if (im) abrirLb(im.src);
+});
+$("#form-t").addEventListener("paste", e => { const fs = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(f => f.type.startsWith("image/")); if (fs.length) { e.preventDefault(); agregarFotos(fs); } });
+const dz = $("#t-fotos-w");
+["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) { e.preventDefault(); dz.classList.add("over"); } }));
+["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove("over")));
+dz.addEventListener("drop", e => { e.preventDefault(); agregarFotos(e.dataTransfer.files); });
+$("#detail").addEventListener("click", e => { const im = e.target.closest("#det-fotos img"); if (im) abrirLb(im.src); });
+$("#lb").addEventListener("click", cerrarLb);
 // tema
 try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => setTimeout(retheme, 30)); } catch (e) { }
 new MutationObserver(() => setTimeout(retheme, 30)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
