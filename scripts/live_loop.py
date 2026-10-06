@@ -4,6 +4,7 @@ Uso (desde la raíz del repo): python3 scripts/live_loop.py DURACION_S [INTERVAL
 import datetime
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -46,6 +47,8 @@ def preparar():
 
 
 def publicar(doc, primero):
+    """Escribe live.json y lo empuja a la rama live. Con ejecuciones solapadas dos pushes pueden chocar:
+    se reintenta con una pausa aleatoria y, si sigue fallando, se registra y se sigue (nunca tumba el trabajo)."""
     with open(os.path.join(WT, "live.json"), "w") as f:
         json.dump(doc, f, separators=(",", ":"))
     git("add", "live.json")
@@ -53,7 +56,13 @@ def publicar(doc, primero):
         git("commit", "-q", "-m", "Precio en vivo MNQ", "--allow-empty")
     else:
         git("commit", "-q", "--amend", "--no-edit", "--allow-empty")
-    git("push", "-q", "--force", "origin", "HEAD:refs/heads/live")
+    for intento in range(1, 5):
+        r = git("push", "-q", "--force", "origin", "HEAD:refs/heads/live", check=False)
+        if r.returncode == 0:
+            return True
+        print(f"Push fallido (intento {intento}): {r.stderr.strip()[:300]}", file=sys.stderr, flush=True)
+        time.sleep(random.uniform(2, 7))
+    return False
 
 
 def main():
@@ -61,6 +70,7 @@ def main():
         print("Mercado cerrado: nada que hacer")
         return
     preparar()
+    time.sleep(random.uniform(0, 20))  # desfasa esta ejecución de la anterior para no empujar en el mismo segundo
     fin = time.time() + DUR
     primero = True
     n = 0
@@ -69,19 +79,24 @@ def main():
         if not abierto(datetime.datetime.now(datetime.timezone.utc)):
             print("Cierre del mercado: fin")
             break
-        df = bajar("1m", "5d")
-        if df.empty:
-            print("Yahoo sin datos en esta vuelta", file=sys.stderr)
-        else:
-            doc = live_doc(df)
-            publicar(doc, primero)
-            primero = False
-            n += 1
-            print(f"{datetime.datetime.now(datetime.timezone.utc):%H:%M:%S}Z último {doc['last']} (vela {datetime.datetime.fromtimestamp(doc['t'], datetime.timezone.utc):%H:%M}Z)", flush=True)
+        try:
+            df = bajar("1m", "5d")
+            if df.empty:
+                print("Yahoo sin datos en esta vuelta", file=sys.stderr, flush=True)
+            else:
+                doc = live_doc(df)
+                if publicar(doc, primero):
+                    primero = False
+                    n += 1
+                    print(f"{datetime.datetime.now(datetime.timezone.utc):%H:%M:%S}Z último {doc['last']} (vela {datetime.datetime.fromtimestamp(doc['t'], datetime.timezone.utc):%H:%M}Z)", flush=True)
+        except Exception as e:  # una vuelta fallida no debe tumbar el trabajo
+            print(f"Vuelta fallida: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         if time.time() + INT > fin:
             break
         time.sleep(max(1, INT - (time.time() - t0)))
     print(f"{n} publicaciones")
+    if n == 0:
+        sys.exit("Ninguna publicación en toda la ejecución")
 
 
 main()
