@@ -272,6 +272,7 @@ pre.dump { max-height: 220px; overflow: auto; background: var(--surface-2); padd
   <!-- RENDIMIENTO -->
   <section id="v-rend" hidden style="display:grid;gap:16px">
     <div class="kpis" id="rd-cmp"></div>
+    <div class="kpis" id="rd-sl"></div>
     <div class="grid2">
       <div class="panel">
         <div class="panel-h"><h2>Crecimiento de la cuenta</h2><span class="muted" id="rd-gr-sub" style="font-size:12px"></span></div>
@@ -768,9 +769,11 @@ function derive(t, capAntes) {
   const riesgoPts = isNum(t.sl) ? Math.abs(t.entrada - t.sl) : null;
   const riesgo = riesgoPts ? riesgoPts * PV * t.ctr : null;
   const R = riesgo ? neto / riesgo : null;
+  // lo que se habría perdido si el precio tocaba el stop: contratos × puntos × $2 + comisión
+  const perdSL = riesgo ? -(riesgo + com) : null;
   const rrPlan = (riesgoPts && isNum(t.tp)) ? Math.abs(t.tp - t.entrada) / riesgoPts : null;
   const nocional = t.entrada * PV * t.ctr;
-  return { pts, bruto, neto, riesgo, R, rrPlan, nocional, lev: capAntes > 0 ? nocional / capAntes : null, riesgoPct: (riesgo && capAntes > 0) ? riesgo / capAntes : null, dur: (isNum(t.ts) && isNum(t.te)) ? (t.ts - t.te) / 60 : null };
+  return { pts, bruto, neto, riesgo, perdSL, R, rrPlan, nocional, lev: capAntes > 0 ? nocional / capAntes : null, riesgoPct: (riesgo && capAntes > 0) ? riesgo / capAntes : null, dur: (isNum(t.ts) && isNum(t.te)) ? (t.ts - t.te) / 60 : null };
 }
 function ordenar(list) { return [...list].sort((a, b) => (a.te - b.te) || String(a.id).localeCompare(String(b.id))); }
 function computeAll(list) {
@@ -1051,12 +1054,12 @@ function rowHtml(r, demo) {
   return `<tr data-id="${esc(t.id)}" class="${S.sel === t.id ? "sel" : ""}">
     <td class="l">${esc(t.fecha)}${demo ? ' <span class="tag ej">ejemplo</span>' : ""}</td><td class="num">${isNum(t.te) ? fmtTime(t.te, tz) : esc(t.he)}</td><td class="l">${sbadge(t.te)}</td>
     <td class="l"><span class="tag ${t.dir > 0 ? "long" : "short"}">${t.dir > 0 ? "Largo" : "Corto"}</span></td>
-    <td class="num">${t.ctr}</td><td class="num">${px(t.entrada)}</td><td class="num">${px(t.sl)}</td><td class="num">${px(t.tp)}</td><td class="num">${px(t.salida)}</td>
+    <td class="num">${t.ctr}</td><td class="num">${px(t.entrada)}</td><td class="num">${px(t.sl)}</td><td class="num neg" title="${isNum(d.perdSL) ? `${t.ctr} ctr × ${Math.abs(t.entrada - t.sl).toFixed(2)} pts × $${PV}${t.com ? " + comisión" : ""}` : "Sin stop loss registrado"}">${money(d.perdSL)}</td><td class="num">${px(t.tp)}</td><td class="num">${px(t.salida)}</td>
     <td class="num ${cls(d.pts)}">${isNum(d.pts) ? (d.pts > 0 ? "+" : "") + d.pts.toFixed(2) : "—"}</td>
     <td class="num ${cls(d.neto)}">${money(d.neto)}</td><td class="num ${cls(d.R)}">${rr(d.R)}</td>
     <td class="l">${esc(t.setup || "")}</td><td class="l">${t.reglas ? "Sí" : "No"}</td></tr>`;
 }
-const HEAD = `<thead><tr><th class="l">Fecha</th><th>Hora</th><th class="l">Sesión</th><th class="l">Dir.</th><th>Ctr.</th><th>Entrada</th><th>SL</th><th>TP</th><th>Salida</th><th>Pts</th><th>PnL neto</th><th>R</th><th class="l">Setup</th><th class="l">Plan</th></tr></thead>`;
+const HEAD = `<thead><tr><th class="l">Fecha</th><th>Hora</th><th class="l">Sesión</th><th class="l">Dir.</th><th>Ctr.</th><th>Entrada</th><th>SL</th><th title="Lo que habrías perdido si el precio tocaba tu stop loss (contratos × puntos × $2 + comisión)">Pérd. SL</th><th>TP</th><th>Salida</th><th>Pts</th><th>PnL neto</th><th>R</th><th class="l">Setup</th><th class="l">Plan</th></tr></thead>`;
 function renderRecent(all) {
   const rows = [...all.rows].reverse().slice(0, 8);
   $("#tbl-recent").innerHTML = rows.length ? HEAD + "<tbody>" + rows.map(r => rowHtml(r, S.usandoDemo)).join("") + "</tbody>" : `<tbody><tr><td class="empty" style="text-align:center">Todavía no hay trades.</td></tr></tbody>`;
@@ -1328,10 +1331,26 @@ function renderCmp(all) {
     `<div class="kpi"><span class="lbl">Consistencia</span><span class="v">${verdes(pd)}</span><span class="s">de los días con trades fueron verdes</span><span class="s">Semanas verdes <b>${verdes(pw)}</b> · meses verdes <b>${verdes(pm)}</b></span></div>`,
   ].join("");
 }
+// stop loss: tamaño medio del stop y lo que costaría tocarlo
+function renderSL(all) {
+  const con = all.rows.filter(r => isNum(r.d.riesgo)), n = con.length, sin = all.rows.length - n;
+  const avg = f => n ? con.reduce((a, r) => a + f(r), 0) / n : null;
+  const ptsProm = avg(r => Math.abs(r.t.entrada - r.t.sl)), ctrProm = avg(r => r.t.ctr), perdProm = avg(r => r.d.perdSL);
+  const rps = con.map(r => r.d.riesgoPct).filter(isNum), rpProm = rps.length ? rps.reduce((a, x) => a + x, 0) / rps.length : null;
+  const peor = n ? con.reduce((a, r) => (r.d.perdSL < a.d.perdSL ? r : a)) : null;
+  const perd = all.rows.filter(r => r.d.neto < 0 && isNum(r.d.perdSL)), realVsSL = perd.length ? perd.reduce((a, r) => a + r.d.neto / r.d.perdSL, 0) / perd.length : null;
+  const nota = sin ? ` · ${sin} sin SL` : "";
+  $("#rd-sl").innerHTML = [
+    `<div class="kpi"><span class="lbl">Stop loss promedio</span><span class="v">${isNum(ptsProm) ? ptsProm.toFixed(2) + " pts" : "—"}</span><span class="s">${n ? `${n} trade${n > 1 ? "s" : ""} con SL${nota}` : "Registra el stop loss en tus trades"}</span><span class="s">${isNum(ptsProm) ? `= ${money(ptsProm * PV, false)} por contrato` : ""}</span></div>`,
+    `<div class="kpi"><span class="lbl">Pérdida promedio si toca SL</span><span class="v neg">${money(perdProm)}</span><span class="s">${isNum(ctrProm) ? `con ${ctrProm.toFixed(ctrProm % 1 ? 1 : 0)} contrato${ctrProm === 1 ? "" : "s"} de media` : ""}</span><span class="s">contratos × puntos × $${PV} + comisión</span></div>`,
+    `<div class="kpi"><span class="lbl">Riesgo promedio por trade</span><span class="v">${pctU(rpProm, 2)}</span><span class="s">de la cuenta al entrar</span><span class="s">Objetivo en Ajustes <b>${esc(S.ajustes.riesgoPct)}%</b></span></div>`,
+    `<div class="kpi"><span class="lbl">Mayor pérdida al SL</span><span class="v neg">${peor ? money(peor.d.perdSL) : "—"}</span><span class="s">${peor ? `${esc(peor.t.fecha)} · ${peor.t.ctr} ctr × ${Math.abs(peor.t.entrada - peor.t.sl).toFixed(2)} pts` : ""}</span><span class="s">${isNum(realVsSL) ? `En tus pérdidas perdiste <b>${pctU(realVsSL, 0)}</b> del stop` : ""}</span></div>`,
+  ].join("");
+}
 function renderRendimiento() {
   const all = computeAll(activeTrades()), p = RD.per, ps = periodos(all, p), info = PER[p];
   $$("#rd-per button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.p === p)));
-  renderCmp(all); drawGrowth(all); drawDD(all); drawPnlPer(all, ps, p);
+  renderCmp(all); renderSL(all); drawGrowth(all); drawDD(all); drawPnlPer(all, ps, p);
   if (ps.length) {
     const ver = ps.filter(v => v.pnl > 0), roj = ps.filter(v => v.pnl < 0);
     const best = ps.reduce((a, v) => (v.pnl > a.pnl ? v : a)), worst = ps.reduce((a, v) => (v.pnl < a.pnl ? v : a));
